@@ -1,8 +1,15 @@
 import { Router } from "express";
 import { supabase } from "../db/supabase";
 import { requireAuth, AuthRequest } from "../middleware/auth.middleware";
+import { z } from "zod";
 
 const router = Router();
+const updateStateSchema = z.object({
+  map_id: z.string().min(1).optional(),
+  map_path: z.string().min(1).optional(),
+  position_x: z.number().optional(),
+  position_y: z.number().optional(),
+});
 
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   const profileId = req.user?.profile_id;
@@ -43,6 +50,50 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   return res.json({
     success: true,
     profile,
+    state,
+  });
+});
+
+router.patch("/state", requireAuth, async (req: AuthRequest, res) => {
+  const profileId = req.user?.profile_id;
+
+  if (!profileId) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+    });
+  }
+
+  const parsed = updateStateSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid state data",
+    });
+  }
+
+  const updates = {
+    ...parsed.data,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: state, error } = await supabase
+    .from("player_state")
+    .update(updates)
+    .eq("profile_id", profileId)
+    .select("*")
+    .single();
+
+  if (error || !state) {
+    return res.status(400).json({
+      success: false,
+      message: error?.message || "Could not update player state",
+    });
+  }
+
+  return res.json({
+    success: true,
     state,
   });
 });
