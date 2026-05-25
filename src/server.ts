@@ -6,6 +6,7 @@ import playerRoutes from "./routes/player.routes";
 import rewardRoutes from "./routes/reward.routes";
 import inventoryRoutes from "./routes/inventory.routes";
 import shopRoutes from "./routes/shop.routes";
+import equipmentRoutes from "./routes/equipment.routes";
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ app.use("/player", playerRoutes);
 app.use("/rewards", rewardRoutes);
 app.use("/inventory", inventoryRoutes);
 app.use("/shop", shopRoutes);
+app.use("/equipment", equipmentRoutes);
 
 app.get("/health", (_req, res) => {
   return res.status(200).json({
