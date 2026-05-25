@@ -5,6 +5,7 @@ import authRoutes from "./routes/auth.routes";
 import playerRoutes from "./routes/player.routes";
 import rewardRoutes from "./routes/reward.routes";
 import inventoryRoutes from "./routes/inventory.routes";
+import shopRoutes from "./routes/shop.routes";
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.use("/auth", authRoutes);
 app.use("/player", playerRoutes);
 app.use("/rewards", rewardRoutes);
 app.use("/inventory", inventoryRoutes);
+app.use("/shop", shopRoutes);
 
 app.get("/health", (_req, res) => {
   return res.status(200).json({
