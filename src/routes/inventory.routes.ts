@@ -1,8 +1,14 @@
 import { Router } from "express";
 import { supabase } from "../db/supabase";
 import { requireAuth, AuthRequest } from "../middleware/auth.middleware";
+import { z } from "zod";
 
 const router = Router();
+
+const consumeSchema = z.object({
+  item_id: z.string().min(1).max(80),
+  amount: z.number().int().min(1).max(100000),
+});
 
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   const profileId = req.user?.profile_id;
@@ -33,6 +39,69 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     success: true,
     inventory: inventory || [],
     equipment: equipment || [],
+  });
+});
+
+router.post("/consume", requireAuth, async (req: AuthRequest, res) => {
+  const profileId = req.user?.profile_id;
+
+  if (!profileId) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  const parsed = consumeSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, message: "Invalid consume data" });
+  }
+
+  const { item_id, amount } = parsed.data;
+
+  const { data: inventoryItem, error: fetchError } = await supabase
+    .from("player_inventory")
+    .select("item_id, amount")
+    .eq("profile_id", profileId)
+    .eq("item_id", item_id)
+    .maybeSingle();
+
+  if (fetchError) {
+    return res.status(400).json({ success: false, message: fetchError.message });
+  }
+
+  if (!inventoryItem || Number(inventoryItem.amount) < amount) {
+    return res.status(400).json({
+      success: false,
+      message: "Not enough item amount",
+    });
+  }
+
+  const newAmount = Number(inventoryItem.amount) - amount;
+
+  const { data: updatedItem, error: updateError } = await supabase
+    .from("player_inventory")
+    .update({
+      amount: newAmount,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("profile_id", profileId)
+    .eq("item_id", item_id)
+    .select("item_id, amount")
+    .single();
+
+  if (updateError || !updatedItem) {
+    return res.status(400).json({
+      success: false,
+      message: updateError?.message || "Could not consume item",
+    });
+  }
+
+  return res.json({
+    success: true,
+    consumed: {
+      item_id,
+      amount,
+    },
+    inventory_item: updatedItem,
   });
 });
 
