@@ -10,7 +10,7 @@ const equipSchema = z.object({
   item_id: z.string().min(1).max(80),
 });
 
-const VALID_SLOTS = new Set([
+const STATIC_VALID_SLOTS = new Set([
   "ship",
   "harpoon",
   "pirate",
@@ -21,20 +21,27 @@ const VALID_SLOTS = new Set([
   "slave",
   "plates",
   "gunpowder",
-  "sail_1",
-  "sail_2",
-  "sail_3",
-  "cannon_1",
-  "cannon_2",
-  "cannon_3",
-  "cannon_4",
-  "cannon_5",
-  "cannon_6",
-  "cannon_7",
-  "cannon_8",
-  "cannon_9",
-  "cannon_10"
+  "basic_pirates",
+  "experienced_pirates"
 ]);
+
+function isValidSlot(slot: string): boolean {
+  if (STATIC_VALID_SLOTS.has(slot)) {
+    return true;
+  }
+
+  if (/^cannon_\d+$/.test(slot)) {
+    const number = Number(slot.replace("cannon_", ""));
+    return number >= 1 && number <= 109;
+  }
+
+  if (/^sail_\d+$/.test(slot)) {
+    const number = Number(slot.replace("sail_", ""));
+    return number >= 1 && number <= 3;
+  }
+
+  return false;
+}
 
 router.post("/equip", requireAuth, async (req: AuthRequest, res) => {
   const profileId = req.user?.profile_id;
@@ -51,7 +58,7 @@ router.post("/equip", requireAuth, async (req: AuthRequest, res) => {
 
   const { slot, item_id } = parsed.data;
 
-  if (!VALID_SLOTS.has(slot)) {
+  if (!isValidSlot(slot)) {
     return res.status(400).json({ success: false, message: "Invalid equipment slot" });
   }
 
@@ -127,7 +134,7 @@ router.post("/unequip", requireAuth, async (req: AuthRequest, res) => {
 
   const { slot } = parsed.data;
 
-  if (!VALID_SLOTS.has(slot)) {
+  if (!isValidSlot(slot)) {
     return res.status(400).json({ success: false, message: "Invalid equipment slot" });
   }
 
