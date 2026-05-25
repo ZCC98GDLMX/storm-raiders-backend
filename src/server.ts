@@ -9,6 +9,7 @@ import shopRoutes from "./routes/shop.routes";
 import equipmentRoutes from "./routes/equipment.routes";
 import quickslotRoutes from "./routes/quickslots.routes";
 import talentsRoutes from "./routes/talents.routes";
+import combatRoutes from "./routes/combat.routes";
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use("/shop", shopRoutes);
 app.use("/equipment", equipmentRoutes);
 app.use("/quickslots", quickslotRoutes);
 app.use("/talents", talentsRoutes);
+app.use("/combat", combatRoutes);
 
 app.get("/health", (_req, res) => {
   return res.status(200).json({

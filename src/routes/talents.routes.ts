@@ -95,7 +95,15 @@ router.post("/upgrade", requireAuth, async (req: AuthRequest, res) => {
     .maybeSingle();
 
   const currentLevel = existingTalent?.level || 0;
+  if (currentLevel >= 5) {
+  return res.status(400).json({
+    success: false,
+    message: "Talent already at max level",
+  });
+}
   const newLevel = currentLevel + 1;
+
+  
 
   const { error: talentError } = await supabase
     .from("player_talents")
