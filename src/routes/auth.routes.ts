@@ -21,7 +21,10 @@ router.post("/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
 
   if (!parsed.success) {
-    return res.status(400).json({ success: false, message: "Invalid register data" });
+    return res.status(400).json({
+      success: false,
+      message: "Invalid register data",
+    });
   }
 
   const username = parsed.data.username.trim().toUpperCase();
@@ -38,13 +41,81 @@ router.post("/register", async (req, res) => {
     .select("id, username, email")
     .single();
 
-  if (error) {
-    return res.status(400).json({ success: false, message: error.message });
+  if (error || !profile) {
+    return res.status(400).json({
+      success: false,
+      message: error?.message || "Could not create account",
+    });
   }
 
   await supabase.from("player_state").insert({
     profile_id: profile.id,
+    level: 1,
+    current_xp: 0,
+    gold: 300000,
+    pearls: 5000,
+    crystals: 0,
+    map_id: "1-1",
+    map_path: "res://scenes/world/map1.tscn",
+    position_x: 2000,
+    position_y: 2000,
   });
+
+  await supabase.from("player_inventory").insert([
+    {
+      profile_id: profile.id,
+      item_id: "hollow",
+      amount: 10000,
+    },
+    {
+      profile_id: profile.id,
+      item_id: "harpoon_1",
+      amount: 5000,
+    },
+    {
+      profile_id: profile.id,
+      item_id: "cannon_30lb",
+      amount: 5,
+    },
+    {
+      profile_id: profile.id,
+      item_id: "red_korsar_1",
+      amount: 1,
+    },
+  ]);
+
+  await supabase.from("player_equipment").insert([
+    {
+      profile_id: profile.id,
+      slot: "ship",
+      item_id: "red_korsar_1",
+    },
+    {
+      profile_id: profile.id,
+      slot: "cannon_1",
+      item_id: "cannon_30lb",
+    },
+    {
+      profile_id: profile.id,
+      slot: "cannon_2",
+      item_id: "cannon_30lb",
+    },
+    {
+      profile_id: profile.id,
+      slot: "cannon_3",
+      item_id: "cannon_30lb",
+    },
+    {
+      profile_id: profile.id,
+      slot: "cannon_4",
+      item_id: "cannon_30lb",
+    },
+    {
+      profile_id: profile.id,
+      slot: "cannon_5",
+      item_id: "cannon_30lb",
+    },
+  ]);
 
   return res.status(201).json({
     success: true,
@@ -57,7 +128,10 @@ router.post("/login", async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
 
   if (!parsed.success) {
-    return res.status(400).json({ success: false, message: "Invalid login data" });
+    return res.status(400).json({
+      success: false,
+      message: "Invalid login data",
+    });
   }
 
   const username = parsed.data.username.trim().toUpperCase();
@@ -69,13 +143,22 @@ router.post("/login", async (req, res) => {
     .single();
 
   if (error || !profile) {
-    return res.status(401).json({ success: false, message: "Invalid username or password" });
+    return res.status(401).json({
+      success: false,
+      message: "Invalid username or password",
+    });
   }
 
-  const passwordOk = await bcrypt.compare(parsed.data.password, profile.password_hash);
+  const passwordOk = await bcrypt.compare(
+    parsed.data.password,
+    profile.password_hash
+  );
 
   if (!passwordOk) {
-    return res.status(401).json({ success: false, message: "Invalid username or password" });
+    return res.status(401).json({
+      success: false,
+      message: "Invalid username or password",
+    });
   }
 
   const token = jwt.sign(
