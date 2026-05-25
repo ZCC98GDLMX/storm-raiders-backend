@@ -38,6 +38,9 @@ const SHOP_ITEMS: Record<string, ShopItem> = {
   rocket_damage: { id: "rocket_damage",  currency: "pearls",  price: 500,  amount: 1,},
   rocket_slow: { id: "rocket_slow",  currency: "pearls",  price: 500,  amount: 1,},
 
+  plates: { id: "plates",  currency: "gold",  price: 1000000,  amount: 100,},
+  gunpowder: {  id: "gunpowder",  currency: "gold",  price: 2000000,  amount: 100,},
+
 };
 
 const buySchema = z.object({
