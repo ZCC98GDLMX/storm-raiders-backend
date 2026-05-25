@@ -35,11 +35,61 @@ const SHOP_ITEMS: Record<string, ShopItem> = {
   red_korsar_2: { id: "red_korsar_2", currency: "gold", price: 50000, amount: 1, unique: true },
   red_korsar_3: { id: "red_korsar_3", currency: "gold", price: 75000, amount: 1, unique: true },
 
+  renegados_1: { id: "renegados_1", currency: "gold", price: 100000, amount: 1, unique: true },
+  renegados_2: { id: "renegados_2", currency: "gold", price: 150000, amount: 1, unique: true },
+  renegados_3: { id: "renegados_3", currency: "gold", price: 200000, amount: 1, unique: true },
+
+  wild_1: { id: "wild_1", currency: "gold", price: 250000, amount: 1, unique: true },
+  wild_2: { id: "wild_2", currency: "gold", price: 500000, amount: 1, unique: true },
+  wild_3: { id: "wild_3", currency: "gold", price: 750000, amount: 1, unique: true },
+
+  tortuga_1: { id: "tortuga_1", currency: "gold", price: 1000000, amount: 1, unique: true },
+  tortuga_2: { id: "tortuga_2", currency: "gold", price: 1500000, amount: 1, unique: true },
+  tortuga_3: { id: "tortuga_3", currency: "gold", price: 2000000, amount: 1, unique: true },
+
+  sinclair_1: { id: "sinclair_1", currency: "gold", price: 2250000, amount: 1, unique: true },
+  sinclair_2: { id: "sinclair_2", currency: "gold", price: 2500000, amount: 1, unique: true },
+  sinclair_3: { id: "sinclair_3", currency: "gold", price: 2750000, amount: 1, unique: true },
+
+  ratpack_1: { id: "ratpack_1", currency: "gold", price: 3000000, amount: 1, unique: true },
+  ratpack_2: { id: "ratpack_2", currency: "gold", price: 4000000, amount: 1, unique: true },
+  ratpack_3: { id: "ratpack_3", currency: "gold", price: 6000000, amount: 1, unique: true },
+
+  little_buccaneer: { id: "little_buccaneer", currency: "pearls", price: 30000, amount: 1, unique: true },
+  elite: { id: "elite", currency: "pearls", price: 75000, amount: 1, unique: true },
+
   rocket_damage: { id: "rocket_damage",  currency: "pearls",  price: 500,  amount: 1,},
   rocket_slow: { id: "rocket_slow",  currency: "pearls",  price: 500,  amount: 1,},
 
   plates: { id: "plates",  currency: "gold",  price: 1000000,  amount: 100,},
   gunpowder: {  id: "gunpowder",  currency: "gold",  price: 2000000,  amount: 100,},
+  turtle_light: { id: "turtle_light", currency: "pearls", price: 2500, amount: 1 },
+  crystal_gift: { id: "crystal_gift", currency: "pearls", price: 300, amount: 1 },
+  triton_bless: { id: "triton_bless", currency: "pearls", price: 500, amount: 1 },
+  light_medallion: { id: "light_medallion", currency: "pearls", price: 400, amount: 1 },
+
+  pirate_1: { id: "pirate_1", currency: "gold", price: 250, amount: 1 },
+  pirate_2: { id: "pirate_2", currency: "pearls", price: 5, amount: 1 },
+
+  captain_1: { id: "captain_1", currency: "pearls", price: 25000, amount: 1 },
+  captain_2: { id: "captain_2", currency: "pearls", price: 50000, amount: 1 },
+
+  foreman_1: { id: "foreman_1", currency: "gold", price: 10800, amount: 1 },
+  foreman_2: { id: "foreman_2", currency: "gold", price: 99000, amount: 1 },
+  foreman_3: { id: "foreman_3", currency: "pearls", price: 29000, amount: 1 },
+  foreman_4: { id: "foreman_4", currency: "pearls", price: 60000, amount: 1 },
+
+  lookout_1: { id: "lookout_1", currency: "gold", price: 10000, amount: 1 },
+  lookout_2: { id: "lookout_2", currency: "pearls", price: 15000, amount: 1 },
+
+  gunner_1: { id: "gunner_1", currency: "pearls", price: 19000, amount: 1 },
+
+  slave_1: { id: "slave_1", currency: "gold", price: 10000, amount: 1 },
+  slave_2: { id: "slave_2", currency: "gold", price: 25000, amount: 1 },
+  slave_3: { id: "slave_3", currency: "pearls", price: 500, amount: 1 },
+
+  crystals: { id: "crystals", currency: "pearls", price: 308, amount: 1 },
+
 
 };
 
