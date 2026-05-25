@@ -34,6 +34,10 @@ const SHOP_ITEMS: Record<string, ShopItem> = {
   red_korsar_1: { id: "red_korsar_1", currency: "gold", price: 0, amount: 1, unique: true },
   red_korsar_2: { id: "red_korsar_2", currency: "gold", price: 50000, amount: 1, unique: true },
   red_korsar_3: { id: "red_korsar_3", currency: "gold", price: 75000, amount: 1, unique: true },
+
+  rocket_damage: { id: "rocket_damage",  currency: "pearls",  price: 500,  amount: 1,},
+  rocket_slow: { id: "rocket_slow",  currency: "pearls",  price: 500,  amount: 1,},
+
 };
 
 const buySchema = z.object({
