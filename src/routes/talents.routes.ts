@@ -216,4 +216,74 @@ const price = TALENT_POINT_COSTS[currentBought];
   });
 });
 
+router.post("/reset", requireAuth, async (req: AuthRequest, res) => {
+  const profileId = req.user?.profile_id;
+
+  if (!profileId) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  const RESET_COST = 100;
+
+  const { data: state, error: stateError } = await supabase
+    .from("player_state")
+    .select("crystals, talent_points_bought")
+    .eq("profile_id", profileId)
+    .single();
+
+  if (stateError || !state) {
+    return res.status(400).json({
+      success: false,
+      message: "Player state not found",
+    });
+  }
+
+  if (Number(state.crystals || 0) < RESET_COST) {
+    return res.status(400).json({
+      success: false,
+      message: "Not enough crystals",
+    });
+  }
+
+  const { error: deleteError } = await supabase
+    .from("player_talents")
+    .delete()
+    .eq("profile_id", profileId);
+
+  if (deleteError) {
+    return res.status(400).json({
+      success: false,
+      message: deleteError.message,
+    });
+  }
+
+  const bought = Number(state.talent_points_bought || 0);
+
+  const { data: updatedState, error: updateError } = await supabase
+    .from("player_state")
+    .update({
+      crystals: Number(state.crystals) - RESET_COST,
+      talent_points_available: bought,
+      talent_points_invested: 0,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("profile_id", profileId)
+    .select("crystals, talent_points_bought, talent_points_available, talent_points_invested")
+    .single();
+
+  if (updateError || !updatedState) {
+    return res.status(400).json({
+      success: false,
+      message: updateError?.message || "Could not reset talents",
+    });
+  }
+
+  return res.json({
+    success: true,
+    reset_cost: RESET_COST,
+    talents: [],
+    state: updatedState,
+  });
+});
+
 export default router;
