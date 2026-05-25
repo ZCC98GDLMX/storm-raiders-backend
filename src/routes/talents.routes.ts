@@ -164,7 +164,23 @@ router.post("/buy-point", requireAuth, async (req: AuthRequest, res) => {
   }
 
   const currentBought = Number(state.talent_points_bought || 0);
-  const price = 100 + currentBought * 25;
+  const TALENT_POINT_COSTS = [
+  5, 10, 15, 20, 25, 30, 35, 40, 45, 50,
+  65, 80, 95, 110, 125, 140, 155, 170, 185, 200,
+  230, 260, 290, 320, 350, 380, 410, 440, 470, 500,
+  550, 600, 650, 700, 750, 800, 850, 900, 950, 1000,
+  1150, 1300, 1450, 1600, 1750, 1900, 2050, 2200, 2350, 2500,
+  3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500, 7000, 7500
+];
+
+if (currentBought < 0 || currentBought >= TALENT_POINT_COSTS.length) {
+  return res.status(400).json({
+    success: false,
+    message: "Maximum talent points reached",
+  });
+}
+
+const price = TALENT_POINT_COSTS[currentBought];
 
   if (Number(state.crystals || 0) < price) {
     return res.status(400).json({
