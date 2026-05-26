@@ -501,4 +501,96 @@ router.post("/create-bonusmap", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+router.get("/state", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const profileId = req.user?.profile_id;
+
+    if (!profileId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    let { data: arubaState } = await supabase
+      .from("player_aruba_state")
+      .select("green_pieces, red_pieces, blue_pieces, multiplier, multiplier_enabled")
+      .eq("profile_id", profileId)
+      .maybeSingle();
+
+    if (!arubaState) {
+      const { data: createdArubaState, error: createError } = await supabase
+        .from("player_aruba_state")
+        .insert({
+          profile_id: profileId,
+          green_pieces: [],
+          red_pieces: [],
+          blue_pieces: [],
+          multiplier: 1,
+          multiplier_enabled: false,
+        })
+        .select("green_pieces, red_pieces, blue_pieces, multiplier, multiplier_enabled")
+        .single();
+
+      if (createError || !createdArubaState) {
+        return res.status(400).json({
+          success: false,
+          message: createError?.message || "Could not create Aruba state",
+        });
+      }
+
+      arubaState = createdArubaState;
+    }
+
+    const { data: bonusmaps, error: bonusmapError } = await supabase
+      .from("player_bonusmaps")
+      .select("bonusmap_type, owned_count")
+      .eq("profile_id", profileId);
+
+    if (bonusmapError) {
+      return res.status(400).json({
+        success: false,
+        message: bonusmapError.message,
+      });
+    }
+
+    const owned = {
+      green: 0,
+      red: 0,
+      blue: 0,
+    };
+
+    for (const row of bonusmaps || []) {
+      const type = String(row.bonusmap_type || "");
+
+      if (type === "green") {
+        owned.green = Number(row.owned_count || 0);
+      } else if (type === "red") {
+        owned.red = Number(row.owned_count || 0);
+      } else if (type === "blue") {
+        owned.blue = Number(row.owned_count || 0);
+      }
+    }
+
+    return res.json({
+      success: true,
+      aruba: {
+        green_pieces: arubaState.green_pieces || [],
+        red_pieces: arubaState.red_pieces || [],
+        blue_pieces: arubaState.blue_pieces || [],
+        multiplier: Number(arubaState.multiplier || 1),
+        multiplier_enabled: Boolean(arubaState.multiplier_enabled || false),
+      },
+      bonusmaps: owned,
+    });
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unexpected Aruba state error",
+    });
+  }
+});
+
 export default router;
