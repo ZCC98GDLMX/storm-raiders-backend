@@ -14,18 +14,28 @@ function randomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function pickMissingPiece(currentPieces: number[], total: number): number | null {
-  const missing: number[] = [];
+function pickRandomPiece(total: number): number {
+  return randomInt(1, total);
+}
 
-  for (let i = 1; i <= total; i++) {
-    if (!currentPieces.includes(i)) {
-      missing.push(i);
+function addMissingPieces(currentPieces: number[], total: number, amount: number): number[] {
+  const added: number[] = [];
+
+  for (let i = 0; i < amount; i++) {
+    const missing: number[] = [];
+
+    for (let piece = 1; piece <= total; piece++) {
+      if (!currentPieces.includes(piece) && !added.includes(piece)) {
+        missing.push(piece);
+      }
     }
+
+    if (missing.length <= 0) break;
+
+    added.push(missing[randomInt(0, missing.length - 1)]);
   }
 
-  if (missing.length <= 0) return null;
-
-  return missing[randomInt(0, missing.length - 1)];
+  return added;
 }
 
 async function addInventoryItem(profileId: string, itemId: string, amount: number) {
@@ -177,64 +187,103 @@ router.post("/throw-mojo", requireAuth, async (req: AuthRequest, res) => {
 
     // 15% bonusmap pieces
     if (roll < 5) {
-      const piece = pickMissingPiece(greenPieces, PIECE_TOTALS.green);
+      if (activeMultiplier > 1) {
+        const addedPieces = addMissingPieces(greenPieces, PIECE_TOTALS.green, activeMultiplier);
+        greenPieces.push(...addedPieces);
 
-      if (piece === null) {
-        nextMultiplier = Math.min(Math.max(nextMultiplier, 1) + 1, 6);
-        reward = {
-          type: "duplicate_piece",
-          map_type: "green",
-          amount: 0,
-          multiplier: nextMultiplier,
-        };
-      } else {
-        greenPieces.push(piece);
         reward = {
           type: "bonusmap_piece",
           map_type: "green",
-          piece_id: piece,
-          amount: 1,
+          piece_ids: addedPieces,
+          amount: addedPieces.length,
         };
+      } else {
+        const piece = pickRandomPiece(PIECE_TOTALS.green);
+
+        if (greenPieces.includes(piece)) {
+          nextMultiplier = Math.min(Math.max(nextMultiplier, 1) + 1, 6);
+          reward = {
+            type: "duplicate_piece",
+            map_type: "green",
+            piece_id: piece,
+            amount: 0,
+            multiplier: nextMultiplier,
+          };
+        } else {
+          greenPieces.push(piece);
+          reward = {
+            type: "bonusmap_piece",
+            map_type: "green",
+            piece_id: piece,
+            amount: 1,
+          };
+        }
       }
     } else if (roll < 10) {
-      const piece = pickMissingPiece(redPieces, PIECE_TOTALS.red);
+      if (activeMultiplier > 1) {
+        const addedPieces = addMissingPieces(redPieces, PIECE_TOTALS.red, activeMultiplier);
+        redPieces.push(...addedPieces);
 
-      if (piece === null) {
-        nextMultiplier = Math.min(Math.max(nextMultiplier, 1) + 1, 6);
-        reward = {
-          type: "duplicate_piece",
-          map_type: "red",
-          amount: 0,
-          multiplier: nextMultiplier,
-        };
-      } else {
-        redPieces.push(piece);
         reward = {
           type: "bonusmap_piece",
           map_type: "red",
-          piece_id: piece,
-          amount: 1,
+          piece_ids: addedPieces,
+          amount: addedPieces.length,
         };
+      } else {
+        const piece = pickRandomPiece(PIECE_TOTALS.red);
+
+        if (redPieces.includes(piece)) {
+          nextMultiplier = Math.min(Math.max(nextMultiplier, 1) + 1, 6);
+          reward = {
+            type: "duplicate_piece",
+            map_type: "red",
+            piece_id: piece,
+            amount: 0,
+            multiplier: nextMultiplier,
+          };
+        } else {
+          redPieces.push(piece);
+          reward = {
+            type: "bonusmap_piece",
+            map_type: "red",
+            piece_id: piece,
+            amount: 1,
+          };
+        }
       }
     } else if (roll < 15) {
-      const piece = pickMissingPiece(bluePieces, PIECE_TOTALS.blue);
+      if (activeMultiplier > 1) {
+        const addedPieces = addMissingPieces(bluePieces, PIECE_TOTALS.blue, activeMultiplier);
+        bluePieces.push(...addedPieces);
 
-      if (piece === null) {
-        nextMultiplier = Math.min(Math.max(nextMultiplier, 1) + 1, 6);
-        reward = {
-          type: "duplicate_piece",
-          map_type: "blue",
-          amount: 0,
-          multiplier: nextMultiplier,
-        };
-      } else {
-        bluePieces.push(piece);
         reward = {
           type: "bonusmap_piece",
           map_type: "blue",
-          piece_id: piece,
-          amount: 1,
+          piece_ids: addedPieces,
+          amount: addedPieces.length,
         };
+      } else {
+        const piece = pickRandomPiece(PIECE_TOTALS.blue);
+
+        if (bluePieces.includes(piece)) {
+          nextMultiplier = Math.min(Math.max(nextMultiplier, 1) + 1, 6);
+          reward = {
+            type: "duplicate_piece",
+            map_type: "blue",
+            piece_id: piece,
+            amount: 0,
+            multiplier: nextMultiplier,
+          };
+        } else {
+          bluePieces.push(piece);
+          reward = {
+            type: "bonusmap_piece",
+            map_type: "blue",
+            piece_id: piece,
+            amount: 1,
+          };
+        }
       }
     }
 
