@@ -364,4 +364,141 @@ router.post("/throw-mojo", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+router.post("/create-bonusmap", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const profileId = req.user?.profile_id;
+    const bonusmapType = String(req.body?.bonusmap_type || "").toLowerCase();
+
+    if (!profileId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    if (!["green", "red", "blue"].includes(bonusmapType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid bonusmap type",
+      });
+    }
+
+    const requiredPieces = {
+      green: 30,
+      red: 48,
+      blue: 64,
+    };
+
+    const { data: arubaState } = await supabase
+      .from("player_aruba_state")
+      .select("green_pieces, red_pieces, blue_pieces")
+      .eq("profile_id", profileId)
+      .single();
+
+    if (!arubaState) {
+      return res.status(400).json({
+        success: false,
+        message: "Aruba state not found",
+      });
+    }
+
+    let greenPieces: number[] = Array.isArray(arubaState.green_pieces)
+      ? arubaState.green_pieces.map(Number)
+      : [];
+
+    let redPieces: number[] = Array.isArray(arubaState.red_pieces)
+      ? arubaState.red_pieces.map(Number)
+      : [];
+
+    let bluePieces: number[] = Array.isArray(arubaState.blue_pieces)
+      ? arubaState.blue_pieces.map(Number)
+      : [];
+
+    let currentPieces: number[] = [];
+
+    if (bonusmapType === "green") {
+      currentPieces = greenPieces;
+    } else if (bonusmapType === "red") {
+      currentPieces = redPieces;
+    } else {
+      currentPieces = bluePieces;
+    }
+
+    const required = requiredPieces[bonusmapType as keyof typeof requiredPieces];
+
+    if (currentPieces.length < required) {
+      return res.status(400).json({
+        success: false,
+        message: "Not enough bonusmap pieces",
+      });
+    }
+
+    const { data: existingBonusmap } = await supabase
+      .from("player_bonusmaps")
+      .select("owned_count")
+      .eq("profile_id", profileId)
+      .eq("bonusmap_type", bonusmapType)
+      .maybeSingle();
+
+    let newOwnedCount = 1;
+
+    if (existingBonusmap) {
+      newOwnedCount = Number(existingBonusmap.owned_count || 0) + 1;
+
+      await supabase
+        .from("player_bonusmaps")
+        .update({
+          owned_count: newOwnedCount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("profile_id", profileId)
+        .eq("bonusmap_type", bonusmapType);
+    } else {
+      await supabase.from("player_bonusmaps").insert({
+        profile_id: profileId,
+        bonusmap_type: bonusmapType,
+        current_wave: 0,
+        owned_count: newOwnedCount,
+      });
+    }
+
+    if (bonusmapType === "green") {
+      greenPieces = [];
+    } else if (bonusmapType === "red") {
+      redPieces = [];
+    } else {
+      bluePieces = [];
+    }
+
+    await supabase
+      .from("player_aruba_state")
+      .update({
+        green_pieces: greenPieces,
+        red_pieces: redPieces,
+        blue_pieces: bluePieces,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("profile_id", profileId);
+
+    return res.json({
+      success: true,
+      message: "Bonusmap created",
+      bonusmap_type: bonusmapType,
+      owned_count: newOwnedCount,
+      aruba: {
+        green_pieces: greenPieces,
+        red_pieces: redPieces,
+        blue_pieces: bluePieces,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unexpected create bonusmap error",
+    });
+  }
+});
+
 export default router;
