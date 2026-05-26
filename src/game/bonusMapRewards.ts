@@ -107,4 +107,26 @@ export const BONUS_MAP_WAVE_REWARDS: Record<string, Record<number, {
     29: { gunpowder: 2068, xp: 33838, elite: 25876, pearls: 8864, gold: 223926, crystals: 23 },
     30: { plates: 921, xp: 30408, elite: 23253, pearls: 7902, gold: 201229 },
   },
+   
 };
+
+export const BONUS_MAP_FINAL_REWARDS = {
+  green: [
+    { id: "green_cannon_spell", chance: 50 },
+    { id: "green_hull_spell", chance: 50 },
+  ],
+
+  red: [
+    { id: "red_cannon_spell", chance: 25 },
+    { id: "red_hull_spell", chance: 25 },
+    { id: "dark_mojo_design", chance: 25 },
+    { id: "venom_design", chance: 25 },
+  ],
+
+  blue: [
+    { id: "blue_cannon_spell", chance: 25 },
+    { id: "blue_hull_spell", chance: 25 },
+    { id: "skull_crossbones_design", chance: 25 },
+    { id: "skull_crossbones_2_design", chance: 25 },
+  ],
+} as const;

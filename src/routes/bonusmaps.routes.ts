@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { supabase } from "../db/supabase";
 import { requireAuth, AuthRequest } from "../middleware/auth.middleware";
-import { BONUS_MAP_WAVE_REWARDS } from "../game/bonusMapRewards";
+import { BONUS_MAP_WAVE_REWARDS, BONUS_MAP_FINAL_REWARDS } from "../game/bonusMapRewards";
 
 const router = Router();
 
@@ -139,6 +139,140 @@ router.get("/progress/:type", requireAuth, async (req: AuthRequest, res) => {
     bonusmap_type: bonusmapType,
     current_wave: data?.current_wave || 0,
     owned_count: data?.owned_count || 0,
+  });
+});
+
+
+const completeBonusmapSchema = z.object({
+  bonusmap_type: z.enum(["green", "red", "blue"]),
+});
+
+function pickFinalReward(bonusmapType: "green" | "red" | "blue") {
+  const rewards = BONUS_MAP_FINAL_REWARDS[bonusmapType];
+  const roll = Math.random() * 100;
+
+  let acc = 0;
+
+  for (const reward of rewards) {
+    acc += reward.chance;
+
+    if (roll <= acc) {
+      return reward.id;
+    }
+  }
+
+  return rewards[0].id;
+}
+
+router.post("/complete", requireAuth, async (req: AuthRequest, res) => {
+  const profileId = req.user?.profile_id;
+
+  if (!profileId) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  const parsed = completeBonusmapSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, message: "Invalid bonusmap complete data" });
+  }
+
+  const { bonusmap_type } = parsed.data;
+  const finalReward = pickFinalReward(bonusmap_type);
+
+  const { data: progress, error: progressError } = await supabase
+    .from("player_bonusmaps")
+    .select("owned_count")
+    .eq("profile_id", profileId)
+    .eq("bonusmap_type", bonusmap_type)
+    .maybeSingle();
+
+  if (progressError) {
+    return res.status(400).json({ success: false, message: progressError.message });
+  }
+
+  const ownedCount = Number(progress?.owned_count || 0);
+
+  const { error: progressUpdateError } = await supabase
+    .from("player_bonusmaps")
+    .upsert(
+      {
+        profile_id: profileId,
+        bonusmap_type,
+        current_wave: 0,
+        owned_count: Math.max(0, ownedCount - 1),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "profile_id,bonusmap_type" }
+    );
+
+  if (progressUpdateError) {
+    return res.status(400).json({ success: false, message: progressUpdateError.message });
+  }
+
+  const designRewards = [
+    "dark_mojo_design",
+    "venom_design",
+    "skull_crossbones_design",
+    "skull_crossbones_2_design",
+  ];
+
+  if (designRewards.includes(finalReward)) {
+    const { data: existing } = await supabase
+      .from("player_inventory")
+      .select("amount")
+      .eq("profile_id", profileId)
+      .eq("item_id", finalReward)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from("player_inventory")
+        .update({
+          amount: Math.max(1, Number(existing.amount || 0)),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("profile_id", profileId)
+        .eq("item_id", finalReward);
+    } else {
+      await supabase.from("player_inventory").insert({
+        profile_id: profileId,
+        item_id: finalReward,
+        amount: 1,
+      });
+    }
+  } else {
+    const { data: existing } = await supabase
+      .from("player_inventory")
+      .select("amount")
+      .eq("profile_id", profileId)
+      .eq("item_id", finalReward)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from("player_inventory")
+        .update({
+          amount: Number(existing.amount || 0) + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("profile_id", profileId)
+        .eq("item_id", finalReward);
+    } else {
+      await supabase.from("player_inventory").insert({
+        profile_id: profileId,
+        item_id: finalReward,
+        amount: 1,
+      });
+    }
+  }
+
+  return res.json({
+    success: true,
+    bonusmap_type,
+    final_reward: finalReward,
+    current_wave: 0,
+    owned_count: Math.max(0, ownedCount - 1),
   });
 });
 
