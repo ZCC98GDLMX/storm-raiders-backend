@@ -10,6 +10,62 @@ const equipSchema = z.object({
   item_id: z.string().min(1).max(80),
 });
 
+const unequipSchema = z.object({
+  slot: z.string().min(1).max(40),
+});
+
+const SHIPS = new Set([
+  "red_korsar_1", "red_korsar_2", "red_korsar_3",
+  "renegados_1", "renegados_2", "renegados_3",
+  "wild_1", "wild_2", "wild_3",
+  "tortuga_1", "tortuga_2", "tortuga_3",
+  "sinclair_1", "sinclair_2", "sinclair_3",
+  "ratpack_1", "ratpack_2", "ratpack_3",
+  "little_buccaneer", "elite",
+  "dark_mojo", "venom", "skull_crossbones", "skull_crossbones_2",
+]);
+
+const CANNONS = new Set([
+  "cannon_30lb",
+  "cannon_50lb",
+  "cannon_55lb",
+  "almirant_cannon",
+]);
+
+const SAILS = new Set([
+  "sails_1",
+  "sails_2",
+  "sails_3",
+]);
+
+const HARPOONS = new Set([
+  "harpoon_1",
+  "harpoon_2",
+  "harpoon_3",
+]);
+
+const PIRATE_SLOTS: Record<string, string> = {
+  pirate_1: "basic_pirates",
+  pirate_2: "experienced_pirates",
+  captain_1: "captain",
+  captain_2: "captain",
+  gunner_1: "gunner",
+  foreman_1: "boatswain",
+  foreman_2: "boatswain",
+  foreman_3: "boatswain",
+  foreman_4: "boatswain",
+  lookout_1: "lookout",
+  lookout_2: "lookout",
+  slave_1: "slave",
+  slave_2: "slave",
+  slave_3: "slave",
+};
+
+const EQUIPPABLE_ITEMS = new Set([
+  "plates",
+  "gunpowder",
+]);
+
 const STATIC_VALID_SLOTS = new Set([
   "ship",
   "harpoon",
@@ -22,13 +78,11 @@ const STATIC_VALID_SLOTS = new Set([
   "plates",
   "gunpowder",
   "basic_pirates",
-  "experienced_pirates"
+  "experienced_pirates",
 ]);
 
 function isValidSlot(slot: string): boolean {
-  if (STATIC_VALID_SLOTS.has(slot)) {
-    return true;
-  }
+  if (STATIC_VALID_SLOTS.has(slot)) return true;
 
   if (/^cannon_\d+$/.test(slot)) {
     const number = Number(slot.replace("cannon_", ""));
@@ -41,6 +95,116 @@ function isValidSlot(slot: string): boolean {
   }
 
   return false;
+}
+
+function getShipMaxCannons(shipId: string, eliteLevel = 1): number {
+  eliteLevel = Math.max(1, Math.min(10, eliteLevel));
+
+  if (
+    shipId === "elite" ||
+    shipId === "dark_mojo" ||
+    shipId === "venom" ||
+    shipId === "skull_crossbones" ||
+    shipId === "skull_crossbones_2"
+  ) {
+    return 100 + (eliteLevel - 1);
+  }
+
+  if (shipId === "little_buccaneer") return 75;
+
+  const values: Record<string, number> = {
+    red_korsar_1: 5,
+    red_korsar_2: 8,
+    red_korsar_3: 10,
+    renegados_1: 15,
+    renegados_2: 16,
+    renegados_3: 18,
+    wild_1: 20,
+    wild_2: 23,
+    wild_3: 25,
+    tortuga_1: 25,
+    tortuga_2: 26,
+    tortuga_3: 28,
+    sinclair_1: 30,
+    sinclair_2: 32,
+    sinclair_3: 35,
+    ratpack_1: 40,
+    ratpack_2: 45,
+    ratpack_3: 50,
+  };
+
+  return values[shipId] || 5;
+}
+
+function getShipMaxSails(shipId: string): number {
+  if (
+    shipId === "little_buccaneer" ||
+    shipId === "elite" ||
+    shipId === "dark_mojo" ||
+    shipId === "venom" ||
+    shipId === "skull_crossbones" ||
+    shipId === "skull_crossbones_2"
+  ) {
+    return 3;
+  }
+
+  if (shipId.endsWith("_1")) return 1;
+  if (shipId.endsWith("_2")) return 2;
+  if (shipId.endsWith("_3")) return 3;
+
+  return 1;
+}
+
+function itemMatchesSlot(slot: string, itemId: string): boolean {
+  if (slot === "ship") return SHIPS.has(itemId);
+  if (/^cannon_\d+$/.test(slot)) return CANNONS.has(itemId);
+  if (/^sail_\d+$/.test(slot)) return SAILS.has(itemId);
+  if (slot === "harpoon") return HARPOONS.has(itemId);
+  if (slot === "plates") return itemId === "plates";
+  if (slot === "gunpowder") return itemId === "gunpowder";
+
+  if (slot === "basic_pirates") return itemId === "pirate_1";
+  if (slot === "experienced_pirates") return itemId === "pirate_2";
+
+  if (PIRATE_SLOTS[itemId]) {
+    return PIRATE_SLOTS[itemId] === slot;
+  }
+
+  return EQUIPPABLE_ITEMS.has(itemId) && slot === itemId;
+}
+
+async function getCurrentShip(profileId: string): Promise<string> {
+  const { data } = await supabase
+    .from("player_equipment")
+    .select("item_id")
+    .eq("profile_id", profileId)
+    .eq("slot", "ship")
+    .maybeSingle();
+
+  return String(data?.item_id || "red_korsar_1");
+}
+
+async function validateCapacity(profileId: string, slot: string, itemId: string): Promise<string | null> {
+  const shipId = slot === "ship" ? itemId : await getCurrentShip(profileId);
+  const eliteLevel = await getUnlockedEliteLevel(profileId);
+
+  if (/^cannon_\d+$/.test(slot)) {
+    const number = Number(slot.replace("cannon_", ""));
+
+    if (number > getShipMaxCannons(shipId, eliteLevel)) {
+      return "Cannon slot exceeds ship capacity";
+    }
+  }
+
+  if (/^sail_\d+$/.test(slot)) {
+    const number = Number(slot.replace("sail_", ""));
+
+    if (number > getShipMaxSails(shipId)) {
+      return "Sail slot exceeds ship capacity";
+    }
+  }
+
+  return null;
 }
 
 router.post("/equip", requireAuth, async (req: AuthRequest, res) => {
@@ -60,6 +224,22 @@ router.post("/equip", requireAuth, async (req: AuthRequest, res) => {
 
   if (!isValidSlot(slot)) {
     return res.status(400).json({ success: false, message: "Invalid equipment slot" });
+  }
+
+  if (!itemMatchesSlot(slot, item_id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Item does not match equipment slot",
+    });
+  }
+
+  const capacityError = await validateCapacity(profileId, slot, item_id);
+
+  if (capacityError) {
+    return res.status(400).json({
+      success: false,
+      message: capacityError,
+    });
   }
 
   const { data: inventoryItem, error: inventoryError } = await supabase
@@ -115,10 +295,6 @@ router.post("/equip", requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
-const unequipSchema = z.object({
-  slot: z.string().min(1).max(40),
-});
-
 router.post("/unequip", requireAuth, async (req: AuthRequest, res) => {
   const profileId = req.user?.profile_id;
 
@@ -162,5 +338,42 @@ router.post("/unequip", requireAuth, async (req: AuthRequest, res) => {
     equipment: allEquipment || [],
   });
 });
+
+function getEliteLevelFromElitePoints(points: number): number {
+  const requirements = [
+    0,
+    40000,
+    72400,
+    128872,
+    225526,
+    387905,
+    655559,
+    1088228,
+    1773811,
+    2838098,
+  ];
+
+  let level = 1;
+
+  for (let i = 0; i < requirements.length; i++) {
+    if (points >= requirements[i]) {
+      level = i + 1;
+    }
+  }
+
+  return Math.max(1, Math.min(10, level));
+}
+
+async function getUnlockedEliteLevel(profileId: string): Promise<number> {
+  const { data } = await supabase
+    .from("player_state")
+    .select("elite_points")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+
+  return getEliteLevelFromElitePoints(Number(data?.elite_points || 0));
+}
+
+
 
 export default router;
