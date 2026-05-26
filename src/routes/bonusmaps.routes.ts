@@ -25,6 +25,31 @@ router.post("/wave-complete", requireAuth, async (req: AuthRequest, res) => {
   }
 
   const { bonusmap_type, wave } = parsed.data;
+
+  const { data: progress, error: progressError } = await supabase
+  .from("player_bonusmaps")
+  .select("current_wave")
+  .eq("profile_id", profileId)
+  .eq("bonusmap_type", bonusmap_type)
+  .maybeSingle();
+
+if (progressError) {
+  return res.status(400).json({
+    success: false,
+    message: progressError.message,
+  });
+}
+
+const currentWave = Number(progress?.current_wave || 0);
+const expectedWave = currentWave + 1;
+
+if (wave !== expectedWave) {
+  return res.status(400).json({
+    success: false,
+    message: `Invalid wave progression. Expected wave ${expectedWave}`,
+  });
+}
+
   const reward = BONUS_MAP_WAVE_REWARDS[bonusmap_type]?.[wave];
 
   if (!reward) {
