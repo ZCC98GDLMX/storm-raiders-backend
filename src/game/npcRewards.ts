@@ -91,6 +91,9 @@ export const NPC_REWARDS: Record<string, {
   AdmiralKiribati: { xp: 7600, gold: 0, pearls: 14200, crystals: 6 },
   AdmiralLucia: { xp: 17100, gold: 0, pearls: 20000, crystals: 8 },
 
+  SunBurst: { xp: 310, gold: 0, pearls: 225, crystals: 0 },
+  Amaterasu: { xp: 100000, gold: 0, pearls: 100000, crystals: 0 },
+
 };
 
 export const MONSTER_REWARDS: Record<string, {
