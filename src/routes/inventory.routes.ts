@@ -10,6 +10,26 @@ const consumeSchema = z.object({
   amount: z.number().int().min(1).max(100000),
 });
 
+const CONSUMABLE_ITEMS = new Set([
+  "hollow",
+  "explosive",
+  "luminous",
+
+  "harpoon_1",
+  "harpoon_2",
+  "harpoon_3",
+
+  "gunpowder",
+  "plates",
+  "crystal_gift",
+  "light_medallion",
+  "turtle_light",
+  "triton_bless",
+
+  "rocket_damage",
+  "rocket_slow",
+]);
+
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   const profileId = req.user?.profile_id;
 
@@ -56,6 +76,13 @@ router.post("/consume", requireAuth, async (req: AuthRequest, res) => {
   }
 
   const { item_id, amount } = parsed.data;
+
+  if (!CONSUMABLE_ITEMS.has(item_id)) {
+    return res.status(400).json({
+      success: false,
+      message: "This item cannot be consumed",
+    });
+  }
 
   const { data: inventoryItem, error: fetchError } = await supabase
     .from("player_inventory")
