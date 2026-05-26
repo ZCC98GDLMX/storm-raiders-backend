@@ -593,4 +593,77 @@ router.get("/state", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+router.post("/set-multiplier", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const profileId = req.user?.profile_id;
+    const enabled = Boolean(req.body?.enabled);
+
+    if (!profileId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const { data: arubaState, error } = await supabase
+      .from("player_aruba_state")
+      .select("multiplier, multiplier_enabled")
+      .eq("profile_id", profileId)
+      .maybeSingle();
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (!arubaState) {
+      return res.status(400).json({
+        success: false,
+        message: "Aruba state not found",
+      });
+    }
+
+    const currentMultiplier = Number(arubaState.multiplier || 1);
+
+    if (enabled && currentMultiplier <= 1) {
+      return res.status(400).json({
+        success: false,
+        message: "No multiplier available",
+      });
+    }
+
+    const { data: updatedState, error: updateError } = await supabase
+      .from("player_aruba_state")
+      .update({
+        multiplier_enabled: enabled,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("profile_id", profileId)
+      .select("multiplier, multiplier_enabled")
+      .single();
+
+    if (updateError || !updatedState) {
+      return res.status(400).json({
+        success: false,
+        message: updateError?.message || "Failed to update multiplier",
+      });
+    }
+
+    return res.json({
+      success: true,
+      multiplier: Number(updatedState.multiplier || 1),
+      multiplier_enabled: Boolean(updatedState.multiplier_enabled),
+    });
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unexpected set multiplier error",
+    });
+  }
+});
+
 export default router;
