@@ -8,10 +8,12 @@ const router = Router();
 const equipSchema = z.object({
   slot: z.string().min(1).max(40),
   item_id: z.string().min(1).max(80),
+  amount: z.number().int().min(1).max(1000).optional(),
 });
 
 const unequipSchema = z.object({
   slot: z.string().min(1).max(40),
+  amount: z.number().int().min(1).max(1000).optional(),
 });
 
 const SHIPS = new Set([
@@ -221,6 +223,7 @@ router.post("/equip", requireAuth, async (req: AuthRequest, res) => {
   }
 
   const { slot, item_id } = parsed.data;
+  const amount = parsed.data.amount || 1;
 
   if (!isValidSlot(slot)) {
     return res.status(400).json({ success: false, message: "Invalid equipment slot" });
@@ -260,6 +263,69 @@ router.post("/equip", requireAuth, async (req: AuthRequest, res) => {
     });
   }
 
+  if (slot === "basic_pirates" || slot === "experienced_pirates") {
+    const shipId = await getCurrentShip(profileId);
+    const maxPirates = getShipMaxPirates(shipId) + await getCommanderBonus(profileId);
+    const currentlyEquipped = await getCurrentlyEquippedPirates(profileId);
+
+    const { data: existingPirateSlot } = await supabase
+      .from("player_equipment")
+      .select("amount")
+      .eq("profile_id", profileId)
+      .eq("slot", slot)
+      .maybeSingle();
+
+    const currentSlotAmount = Number(existingPirateSlot?.amount || 0);
+    const newSlotAmount = currentSlotAmount + amount;
+
+    if (currentlyEquipped + amount > maxPirates) {
+      return res.status(400).json({
+        success: false,
+        message: "Pirate capacity exceeded",
+      });
+    }
+
+    if (newSlotAmount > Number(inventoryItem.amount || 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "Not enough pirates owned",
+      });
+    }
+
+    const { data: equipment, error: equipError } = await supabase
+      .from("player_equipment")
+      .upsert(
+        {
+          profile_id: profileId,
+          slot,
+          item_id,
+          amount: newSlotAmount,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "profile_id,slot" }
+      )
+      .select("slot, item_id, amount")
+      .single();
+
+    if (equipError || !equipment) {
+      return res.status(400).json({
+        success: false,
+        message: equipError?.message || "Could not equip pirates",
+      });
+    }
+
+    const { data: allEquipment } = await supabase
+      .from("player_equipment")
+      .select("slot, item_id, amount")
+      .eq("profile_id", profileId);
+
+    return res.json({
+      success: true,
+      equipped: equipment,
+      equipment: allEquipment || [],
+    });
+  }
+
   const { data: equipment, error: equipError } = await supabase
     .from("player_equipment")
     .upsert(
@@ -267,13 +333,14 @@ router.post("/equip", requireAuth, async (req: AuthRequest, res) => {
         profile_id: profileId,
         slot,
         item_id,
+        amount: 1,
         updated_at: new Date().toISOString(),
       },
       {
         onConflict: "profile_id,slot",
       }
     )
-    .select("slot, item_id")
+    .select("slot, item_id, amount")
     .single();
 
   if (equipError || !equipment) {
@@ -285,7 +352,7 @@ router.post("/equip", requireAuth, async (req: AuthRequest, res) => {
 
   const { data: allEquipment } = await supabase
     .from("player_equipment")
-    .select("slot, item_id")
+    .select("slot, item_id, amount")
     .eq("profile_id", profileId);
 
   return res.json({
@@ -309,9 +376,71 @@ router.post("/unequip", requireAuth, async (req: AuthRequest, res) => {
   }
 
   const { slot } = parsed.data;
+  const amount = parsed.data.amount || 1;
 
   if (!isValidSlot(slot)) {
     return res.status(400).json({ success: false, message: "Invalid equipment slot" });
+  }
+
+  if (slot === "basic_pirates" || slot === "experienced_pirates") {
+    const { data: existingSlot, error: fetchError } = await supabase
+      .from("player_equipment")
+      .select("amount")
+      .eq("profile_id", profileId)
+      .eq("slot", slot)
+      .maybeSingle();
+
+    if (fetchError) {
+      return res.status(400).json({
+        success: false,
+        message: fetchError.message,
+      });
+    }
+
+    const currentAmount = Number(existingSlot?.amount || 0);
+    const newAmount = Math.max(0, currentAmount - amount);
+
+    if (newAmount <= 0) {
+      const { error: deleteError } = await supabase
+        .from("player_equipment")
+        .delete()
+        .eq("profile_id", profileId)
+        .eq("slot", slot);
+
+      if (deleteError) {
+        return res.status(400).json({
+          success: false,
+          message: deleteError.message,
+        });
+      }
+    } else {
+      const { error: updateError } = await supabase
+        .from("player_equipment")
+        .update({
+          amount: newAmount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("profile_id", profileId)
+        .eq("slot", slot);
+
+      if (updateError) {
+        return res.status(400).json({
+          success: false,
+          message: updateError.message,
+        });
+      }
+    }
+
+    const { data: allEquipment } = await supabase
+      .from("player_equipment")
+      .select("slot, item_id, amount")
+      .eq("profile_id", profileId);
+
+    return res.json({
+      success: true,
+      removed_slot: slot,
+      equipment: allEquipment || [],
+    });
   }
 
   const { error } = await supabase
@@ -329,7 +458,7 @@ router.post("/unequip", requireAuth, async (req: AuthRequest, res) => {
 
   const { data: allEquipment } = await supabase
     .from("player_equipment")
-    .select("slot, item_id")
+    .select("slot, item_id, amount")
     .eq("profile_id", profileId);
 
   return res.json({
@@ -374,6 +503,78 @@ async function getUnlockedEliteLevel(profileId: string): Promise<number> {
   return getEliteLevelFromElitePoints(Number(data?.elite_points || 0));
 }
 
+function getShipMaxPirates(shipId: string): number {
+  if (
+    shipId === "elite" ||
+    shipId === "dark_mojo" ||
+    shipId === "venom" ||
+    shipId === "skull_crossbones" ||
+    shipId === "skull_crossbones_2"
+  ) {
+    return 200;
+  }
 
+  if (shipId === "little_buccaneer") return 150;
+
+  const values: Record<string, number> = {
+    red_korsar_1: 20,
+    red_korsar_2: 25,
+    red_korsar_3: 30,
+
+    renegados_1: 40,
+    renegados_2: 45,
+    renegados_3: 50,
+
+    wild_1: 55,
+    wild_2: 60,
+    wild_3: 65,
+
+    tortuga_1: 70,
+    tortuga_2: 75,
+    tortuga_3: 80,
+
+    sinclair_1: 85,
+    sinclair_2: 90,
+    sinclair_3: 95,
+
+    ratpack_1: 100,
+    ratpack_2: 100,
+    ratpack_3: 100,
+  };
+
+  return values[shipId] || 20;
+}
+
+async function getCommanderBonus(profileId: string): Promise<number> {
+  const { data } = await supabase
+    .from("player_equipment")
+    .select("item_id")
+    .eq("profile_id", profileId)
+    .eq("slot", "captain")
+    .maybeSingle();
+
+  const captain = String(data?.item_id || "");
+
+  if (captain === "captain_1") return 10;
+  if (captain === "captain_2") return 20;
+
+  return 0;
+}
+
+async function getCurrentlyEquippedPirates(profileId: string): Promise<number> {
+  const { data } = await supabase
+    .from("player_equipment")
+    .select("slot, amount")
+    .eq("profile_id", profileId)
+    .in("slot", ["basic_pirates", "experienced_pirates"]);
+
+  let total = 0;
+
+  for (const row of data || []) {
+    total += Number(row.amount || 0);
+  }
+
+  return total;
+}
 
 export default router;
