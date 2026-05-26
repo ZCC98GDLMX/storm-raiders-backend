@@ -14,6 +14,11 @@ const monsterKillSchema = z.object({
   monster_type: z.string().min(1).max(80),
 });
 
+const cannonShotEliteSchema = z.object({
+  ammo_type: z.string().min(1).max(80),
+  cannon_count: z.number().int().min(1).max(109),
+});
+
 router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
   const profileId = req.user?.profile_id;
 
@@ -142,6 +147,86 @@ router.post("/monster-kill", requireAuth, async (req: AuthRequest, res) => {
     success: true,
     monster_type,
     reward,
+    state: updatedState,
+  });
+});
+
+router.post("/cannon-shot-elite", requireAuth, async (req: AuthRequest, res) => {
+  const profileId = req.user?.profile_id;
+
+  if (!profileId) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  const parsed = cannonShotEliteSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, message: "Invalid cannon shot data" });
+  }
+
+  const { ammo_type, cannon_count } = parsed.data;
+
+  const elitePerCannon: Record<string, number> = {
+    hollow: 0,
+    explosive: 1,
+    luminous: 1,
+  };
+
+  const elitePerShot = elitePerCannon[ammo_type];
+
+  if (elitePerShot === undefined) {
+    return res.status(400).json({
+      success: false,
+      message: "Unknown cannon ammo type",
+    });
+  }
+
+  const eliteGain = elitePerShot * cannon_count;
+
+  if (eliteGain <= 0) {
+    return res.json({
+      success: true,
+      elite_gain: 0,
+    });
+  }
+
+  const { data: state, error: stateError } = await supabase
+    .from("player_state")
+    .select("elite_points")
+    .eq("profile_id", profileId)
+    .single();
+
+  if (stateError || !state) {
+    return res.status(400).json({
+      success: false,
+      message: "Player state not found",
+    });
+  }
+
+  const newElitePoints = Number(state.elite_points || 0) + eliteGain;
+
+  const { data: updatedState, error: updateError } = await supabase
+    .from("player_state")
+    .update({
+      elite_points: newElitePoints,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("profile_id", profileId)
+    .select("level, current_xp, gold, pearls, crystals, elite_points")
+    .single();
+
+  if (updateError || !updatedState) {
+    return res.status(400).json({
+      success: false,
+      message: updateError?.message || "Could not apply elite points",
+    });
+  }
+
+  return res.json({
+    success: true,
+    ammo_type,
+    cannon_count,
+    elite_gain: eliteGain,
     state: updatedState,
   });
 });
