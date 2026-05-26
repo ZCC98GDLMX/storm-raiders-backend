@@ -10,6 +10,7 @@ import equipmentRoutes from "./routes/equipment.routes";
 import quickslotRoutes from "./routes/quickslots.routes";
 import talentsRoutes from "./routes/talents.routes";
 import combatRoutes from "./routes/combat.routes";
+import bonusmapRoutes from "./routes/bonusmaps.routes";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use("/equipment", equipmentRoutes);
 app.use("/quickslots", quickslotRoutes);
 app.use("/talents", talentsRoutes);
 app.use("/combat", combatRoutes);
+app.use("/bonusmaps", bonusmapRoutes);
 
 app.get("/health", (_req, res) => {
   return res.status(200).json({
