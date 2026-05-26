@@ -47,9 +47,9 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
   }
 
   const { data: equipment, error: equipmentError } = await supabase
-    .from("player_equipment")
-    .select("slot, item_id")
-    .eq("profile_id", profileId);
+  .from("player_equipment")
+  .select("slot, item_id, amount")
+  .eq("profile_id", profileId);
 
   if (equipmentError) {
     return res.status(400).json({ success: false, message: equipmentError.message });
