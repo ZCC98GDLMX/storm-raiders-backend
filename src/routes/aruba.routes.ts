@@ -4,15 +4,31 @@ import { requireAuth, AuthRequest } from "../middleware/auth.middleware";
 
 const router = Router();
 
+const PIECE_TOTALS = {
+  green: 30,
+  red: 48,
+  blue: 64,
+};
+
 function randomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-async function addInventoryItem(
-  profileId: string,
-  itemId: string,
-  amount: number
-) {
+function pickMissingPiece(currentPieces: number[], total: number): number | null {
+  const missing: number[] = [];
+
+  for (let i = 1; i <= total; i++) {
+    if (!currentPieces.includes(i)) {
+      missing.push(i);
+    }
+  }
+
+  if (missing.length <= 0) return null;
+
+  return missing[randomInt(0, missing.length - 1)];
+}
+
+async function addInventoryItem(profileId: string, itemId: string, amount: number) {
   const { data: existing } = await supabase
     .from("player_inventory")
     .select("amount")
@@ -43,15 +59,8 @@ router.post("/throw-mojo", requireAuth, async (req: AuthRequest, res) => {
     const profileId = req.user?.profile_id;
 
     if (!profileId) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-
-    // =========================
-    // LOAD PLAYER STATE
-    // =========================
 
     const { data: state } = await supabase
       .from("player_state")
@@ -66,10 +75,6 @@ router.post("/throw-mojo", requireAuth, async (req: AuthRequest, res) => {
       });
     }
 
-    // =========================
-    // LOAD MOJOS
-    // =========================
-
     const { data: mojoItem } = await supabase
       .from("player_inventory")
       .select("amount")
@@ -80,9 +85,35 @@ router.post("/throw-mojo", requireAuth, async (req: AuthRequest, res) => {
     let currentMojos = Number(mojoItem?.amount || 0);
     let currentPearls = Number(state.pearls || 0);
 
-    // =========================
-    // PAYMENT
-    // =========================
+    let { data: arubaState } = await supabase
+      .from("player_aruba_state")
+      .select("green_pieces, red_pieces, blue_pieces, multiplier, multiplier_enabled")
+      .eq("profile_id", profileId)
+      .maybeSingle();
+
+    if (!arubaState) {
+      const { data: createdArubaState, error: createError } = await supabase
+        .from("player_aruba_state")
+        .insert({
+          profile_id: profileId,
+          green_pieces: [],
+          red_pieces: [],
+          blue_pieces: [],
+          multiplier: 1,
+          multiplier_enabled: false,
+        })
+        .select("green_pieces, red_pieces, blue_pieces, multiplier, multiplier_enabled")
+        .single();
+
+      if (createError || !createdArubaState) {
+        return res.status(400).json({
+          success: false,
+          message: createError?.message || "Could not create Aruba state",
+        });
+      }
+
+      arubaState = createdArubaState;
+    }
 
     if (currentMojos > 0) {
       currentMojos -= 1;
@@ -116,66 +147,195 @@ router.post("/throw-mojo", requireAuth, async (req: AuthRequest, res) => {
         .eq("profile_id", profileId);
     }
 
-    // =========================
-    // ROLL REWARD
-    // =========================
+    const activeMultiplier =
+      arubaState.multiplier_enabled && Number(arubaState.multiplier || 1) > 1
+        ? Number(arubaState.multiplier || 1)
+        : 1;
+
+    let nextMultiplier = Number(arubaState.multiplier || 1);
+    let nextMultiplierEnabled = false;
+
+    if (arubaState.multiplier_enabled) {
+      nextMultiplier = 1;
+      nextMultiplierEnabled = false;
+    }
 
     const roll = Math.random() * 100;
-
     let reward: any = {};
 
-    // Hollow ammo
-    if (roll < 40) {
-      const amount = 200;
+    let greenPieces: number[] = Array.isArray(arubaState.green_pieces)
+      ? arubaState.green_pieces.map(Number)
+      : [];
 
-      await addInventoryItem(profileId, "hollow", amount);
+    let redPieces: number[] = Array.isArray(arubaState.red_pieces)
+      ? arubaState.red_pieces.map(Number)
+      : [];
 
-      reward = {
-        type: "ammo",
-        item_id: "hollow",
-        amount,
-      };
+    let bluePieces: number[] = Array.isArray(arubaState.blue_pieces)
+      ? arubaState.blue_pieces.map(Number)
+      : [];
+
+    // 15% bonusmap pieces
+    if (roll < 5) {
+      const piece = pickMissingPiece(greenPieces, PIECE_TOTALS.green);
+
+      if (piece === null) {
+        nextMultiplier = Math.min(Math.max(nextMultiplier, 1) + 1, 6);
+        reward = {
+          type: "duplicate_piece",
+          map_type: "green",
+          amount: 0,
+          multiplier: nextMultiplier,
+        };
+      } else {
+        greenPieces.push(piece);
+        reward = {
+          type: "bonusmap_piece",
+          map_type: "green",
+          piece_id: piece,
+          amount: 1,
+        };
+      }
+    } else if (roll < 10) {
+      const piece = pickMissingPiece(redPieces, PIECE_TOTALS.red);
+
+      if (piece === null) {
+        nextMultiplier = Math.min(Math.max(nextMultiplier, 1) + 1, 6);
+        reward = {
+          type: "duplicate_piece",
+          map_type: "red",
+          amount: 0,
+          multiplier: nextMultiplier,
+        };
+      } else {
+        redPieces.push(piece);
+        reward = {
+          type: "bonusmap_piece",
+          map_type: "red",
+          piece_id: piece,
+          amount: 1,
+        };
+      }
+    } else if (roll < 15) {
+      const piece = pickMissingPiece(bluePieces, PIECE_TOTALS.blue);
+
+      if (piece === null) {
+        nextMultiplier = Math.min(Math.max(nextMultiplier, 1) + 1, 6);
+        reward = {
+          type: "duplicate_piece",
+          map_type: "blue",
+          amount: 0,
+          multiplier: nextMultiplier,
+        };
+      } else {
+        bluePieces.push(piece);
+        reward = {
+          type: "bonusmap_piece",
+          map_type: "blue",
+          piece_id: piece,
+          amount: 1,
+        };
+      }
     }
 
-    // Explosive ammo
-    else if (roll < 60) {
-      const amount = 60;
-
-      await addInventoryItem(profileId, "explosive", amount);
-
-      reward = {
-        type: "ammo",
-        item_id: "explosive",
-        amount,
-      };
+    // special items
+    else if (roll < 17.5) {
+      const amount = 1 * activeMultiplier;
+      await addInventoryItem(profileId, "crystal_gift", amount);
+      reward = { type: "extra", item_id: "crystal_gift", amount };
+    } else if (roll < 20) {
+      const amount = 1 * activeMultiplier;
+      await addInventoryItem(profileId, "light_medallion", amount);
+      reward = { type: "extra", item_id: "light_medallion", amount };
+    } else if (roll < 21.5) {
+      const amount = 1 * activeMultiplier;
+      await addInventoryItem(profileId, "turtle_light", amount);
+      reward = { type: "extra", item_id: "turtle_light", amount };
+    } else if (roll < 23) {
+      const amount = 1 * activeMultiplier;
+      await addInventoryItem(profileId, "triton_bless", amount);
+      reward = { type: "extra", item_id: "triton_bless", amount };
     }
 
-    // Gunpowder
-    else if (roll < 80) {
-      const amount = randomInt(4, 8);
-
-      await addInventoryItem(profileId, "gunpowder", amount);
-
-      reward = {
-        type: "extra",
-        item_id: "gunpowder",
-        amount,
-      };
-    }
-
-    // Mojo reward
-    else {
-      const amount = randomInt(1, 3);
-
+    // mojos
+    else if (roll < 31) {
+      const amount = 1 * activeMultiplier;
       await addInventoryItem(profileId, "mojo", amount);
-
-      reward = {
-        type: "mojo",
-        item_id: "mojo",
-        amount,
-      };
-
       currentMojos += amount;
+      reward = { type: "mojo", item_id: "mojo", amount };
+    } else if (roll < 33) {
+      const amount = 2 * activeMultiplier;
+      await addInventoryItem(profileId, "mojo", amount);
+      currentMojos += amount;
+      reward = { type: "mojo", item_id: "mojo", amount };
+    } else if (roll < 35.5) {
+      const amount = 3 * activeMultiplier;
+      await addInventoryItem(profileId, "mojo", amount);
+      currentMojos += amount;
+      reward = { type: "mojo", item_id: "mojo", amount };
+    }
+
+    // ammo
+    else if (roll < 48) {
+      const amount = 200 * activeMultiplier;
+      await addInventoryItem(profileId, "hollow", amount);
+      reward = { type: "ammo", item_id: "hollow", amount };
+    } else if (roll < 56) {
+      const amount = 60 * activeMultiplier;
+      await addInventoryItem(profileId, "explosive", amount);
+      reward = { type: "ammo", item_id: "explosive", amount };
+    } else if (roll < 60.5) {
+      const amount = 60 * activeMultiplier;
+      await addInventoryItem(profileId, "luminous", amount);
+      reward = { type: "ammo", item_id: "luminous", amount };
+    }
+
+    // extras
+    else if (roll < 73) {
+      const amount = randomInt(4, 8) * activeMultiplier;
+      await addInventoryItem(profileId, "plates", amount);
+      reward = { type: "extra", item_id: "plates", amount };
+    } else if (roll < 85.5) {
+      const amount = randomInt(4, 8) * activeMultiplier;
+      await addInventoryItem(profileId, "gunpowder", amount);
+      reward = { type: "extra", item_id: "gunpowder", amount };
+    }
+
+    // harpoons
+    else if (roll < 93.5) {
+      const amount = randomInt(20, 50) * activeMultiplier;
+      await addInventoryItem(profileId, "harpoon_1", amount);
+      reward = { type: "harpoon", item_id: "harpoon_1", amount };
+    } else if (roll < 97.5) {
+      const amount = randomInt(5, 10) * activeMultiplier;
+      await addInventoryItem(profileId, "harpoon_2", amount);
+      reward = { type: "harpoon", item_id: "harpoon_2", amount };
+    } else {
+      const amount = randomInt(2, 5) * activeMultiplier;
+      await addInventoryItem(profileId, "harpoon_3", amount);
+      reward = { type: "harpoon", item_id: "harpoon_3", amount };
+    }
+
+    const { error: arubaUpdateError } = await supabase
+      .from("player_aruba_state")
+      .upsert(
+        {
+          profile_id: profileId,
+          green_pieces: greenPieces,
+          red_pieces: redPieces,
+          blue_pieces: bluePieces,
+          multiplier: nextMultiplier,
+          multiplier_enabled: nextMultiplierEnabled,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "profile_id" }
+      );
+
+    if (arubaUpdateError) {
+      return res.status(400).json({
+        success: false,
+        message: arubaUpdateError.message,
+      });
     }
 
     return res.json({
@@ -185,6 +345,14 @@ router.post("/throw-mojo", requireAuth, async (req: AuthRequest, res) => {
         pearls: currentPearls,
         mojos: currentMojos,
       },
+      aruba: {
+        green_pieces: greenPieces,
+        red_pieces: redPieces,
+        blue_pieces: bluePieces,
+        multiplier: nextMultiplier,
+        multiplier_enabled: nextMultiplierEnabled,
+      },
+      active_multiplier: activeMultiplier,
     });
   } catch (err) {
     console.error(err);
