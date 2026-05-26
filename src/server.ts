@@ -11,6 +11,7 @@ import quickslotRoutes from "./routes/quickslots.routes";
 import talentsRoutes from "./routes/talents.routes";
 import combatRoutes from "./routes/combat.routes";
 import bonusmapRoutes from "./routes/bonusmaps.routes";
+import arubaRoutes from "./routes/aruba.routes";
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use("/quickslots", quickslotRoutes);
 app.use("/talents", talentsRoutes);
 app.use("/combat", combatRoutes);
 app.use("/bonusmaps", bonusmapRoutes);
+app.use("/aruba", arubaRoutes);
 
 app.get("/health", (_req, res) => {
   return res.status(200).json({
