@@ -111,4 +111,35 @@ router.post("/wave-complete", requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
+router.get("/progress/:type", requireAuth, async (req: AuthRequest, res) => {
+  const profileId = req.user?.profile_id;
+  const bonusmapType = String(req.params.type);
+
+  if (!profileId) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  if (!["green", "red", "blue"].includes(bonusmapType)) {
+    return res.status(400).json({ success: false, message: "Invalid bonusmap type" });
+  }
+
+  const { data, error } = await supabase
+    .from("player_bonusmaps")
+    .select("bonusmap_type, current_wave, owned_count")
+    .eq("profile_id", profileId)
+    .eq("bonusmap_type", bonusmapType)
+    .maybeSingle();
+
+  if (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+
+  return res.json({
+    success: true,
+    bonusmap_type: bonusmapType,
+    current_wave: data?.current_wave || 0,
+    owned_count: data?.owned_count || 0,
+  });
+});
+
 export default router;
