@@ -10,6 +10,10 @@ const npcKillSchema = z.object({
   npc_type: z.string().min(1).max(80),
 });
 
+const monsterKillSchema = z.object({
+  monster_type: z.string().min(1).max(80),
+});
+
 router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
   const profileId = req.user?.profile_id;
 
@@ -35,7 +39,7 @@ router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
 
   const { data: state, error: stateError } = await supabase
     .from("player_state")
-    .select("level, current_xp, gold, pearls, crystals")
+    .select("level, current_xp, gold, pearls, crystals, elite_points")
     .eq("profile_id", profileId)
     .single();
 
@@ -47,10 +51,10 @@ router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
   }
 
   const newState = {
-    current_xp: Number(state.current_xp || 0) + reward.xp,
-    gold: Number(state.gold || 0) + reward.gold,
-    pearls: Number(state.pearls || 0) + reward.pearls,
-    crystals: Number(state.crystals || 0) + reward.crystals,
+    current_xp: Number(state.current_xp || 0) + Number(reward.xp || 0),
+    gold: Number(state.gold || 0) + Number(reward.gold || 0),
+    pearls: Number(state.pearls || 0) + Number(reward.pearls || 0),
+    crystals: Number(state.crystals || 0) + Number(reward.crystals || 0),
     updated_at: new Date().toISOString(),
   };
 
@@ -58,7 +62,7 @@ router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
     .from("player_state")
     .update(newState)
     .eq("profile_id", profileId)
-    .select("level, current_xp, gold, pearls, crystals")
+    .select("level, current_xp, gold, pearls, crystals, elite_points")
     .single();
 
   if (updateError || !updatedState) {
@@ -74,10 +78,6 @@ router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
     reward,
     state: updatedState,
   });
-});
-
-const monsterKillSchema = z.object({
-  monster_type: z.string().min(1).max(80),
 });
 
 router.post("/monster-kill", requireAuth, async (req: AuthRequest, res) => {
@@ -105,7 +105,7 @@ router.post("/monster-kill", requireAuth, async (req: AuthRequest, res) => {
 
   const { data: state, error: stateError } = await supabase
     .from("player_state")
-    .select("level, current_xp, gold, pearls, crystals")
+    .select("level, current_xp, gold, pearls, crystals, elite_points")
     .eq("profile_id", profileId)
     .single();
 
@@ -117,10 +117,10 @@ router.post("/monster-kill", requireAuth, async (req: AuthRequest, res) => {
   }
 
   const newState = {
-    current_xp: Number(state.current_xp || 0) + reward.xp,
-    gold: Number(state.gold || 0) + reward.gold,
-    pearls: Number(state.pearls || 0) + reward.pearls,
-    crystals: Number(state.crystals || 0) + reward.crystals,
+    current_xp: Number(state.current_xp || 0) + Number(reward.xp || 0),
+    gold: Number(state.gold || 0) + Number(reward.gold || 0),
+    pearls: Number(state.pearls || 0) + Number(reward.pearls || 0),
+    crystals: Number(state.crystals || 0) + Number(reward.crystals || 0),
     updated_at: new Date().toISOString(),
   };
 
@@ -128,7 +128,7 @@ router.post("/monster-kill", requireAuth, async (req: AuthRequest, res) => {
     .from("player_state")
     .update(newState)
     .eq("profile_id", profileId)
-    .select("level, current_xp, gold, pearls, crystals")
+    .select("level, current_xp, gold, pearls, crystals, elite_points")
     .single();
 
   if (updateError || !updatedState) {
