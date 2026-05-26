@@ -38,4 +38,11 @@ export const NPC_REWARDS: Record<string, {
     pearls: 0,
     crystals: 0,
   },
+
+  AdmiralCalicosJack: {
+  xp: 99,
+  gold: 0,
+  pearls: 180,
+  crystals: 5,
+  },
 };
