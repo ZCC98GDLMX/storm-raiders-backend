@@ -43,6 +43,34 @@ export const NPC_REWARDS: Record<string, {
   xp: 99,
   gold: 0,
   pearls: 180,
-  crystals: 5,
+  crystals: 1,
+  },
+};
+
+export const MONSTER_REWARDS: Record<string, {
+  xp: number;
+  gold: number;
+  pearls: number;
+  crystals: number;
+}> = {
+  Trankus: {
+    xp: 0,
+    gold: 4000,
+    pearls: 0,
+    crystals: 0,
+  },
+
+  MobyDick: {
+    xp: 0,
+    gold: 6000,
+    pearls: 0,
+    crystals: 0,
+  },
+
+  Iguana: {
+    xp: 0,
+    gold: 6500,
+    pearls: 0,
+    crystals: 0,
   },
 };
