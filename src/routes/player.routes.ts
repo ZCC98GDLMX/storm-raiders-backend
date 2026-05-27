@@ -10,6 +10,16 @@ const updateStateSchema = z.object({
   position_x: z.number().optional(),
   position_y: z.number().optional(),
   current_hp: z.number().min(0).optional(),
+
+  turtle_light_time_left: z.number().min(0).optional(),
+
+  crystal_gift_time_left: z.number().min(0).optional(),
+  crystal_gift_cooldown_left: z.number().min(0).optional(),
+
+  triton_bless_cooldown_left: z.number().min(0).optional(),
+
+  rocket_damage_cooldown_left: z.number().min(0).optional(),
+  rocket_slow_cooldown_left: z.number().min(0).optional(),
 });
 
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
