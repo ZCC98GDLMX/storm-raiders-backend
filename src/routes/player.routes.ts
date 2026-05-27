@@ -9,6 +9,7 @@ const updateStateSchema = z.object({
   map_path: z.string().min(1).optional(),
   position_x: z.number().optional(),
   position_y: z.number().optional(),
+  current_hp: z.number().min(0).optional(),
 });
 
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
