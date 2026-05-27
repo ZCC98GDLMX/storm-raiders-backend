@@ -11,6 +11,72 @@ const waveCompleteSchema = z.object({
   wave: z.number().int().positive(),
 });
 
+const completeBonusmapSchema = z.object({
+  bonusmap_type: z.enum(["green", "red", "blue"]),
+});
+
+const SPELL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
+const SPELL_REWARD_COLUMNS: Record<string, string> = {
+  green_cannon_spell: "green_cannon_spell_expires_at",
+  green_hull_spell: "green_hull_spell_expires_at",
+  red_cannon_spell: "red_cannon_spell_expires_at",
+  red_hull_spell: "red_hull_spell_expires_at",
+  blue_cannon_spell: "blue_cannon_spell_expires_at",
+  blue_hull_spell: "blue_hull_spell_expires_at",
+};
+
+function addSevenDaysToSpell(currentExpiresAt: string | null): string {
+  const now = new Date();
+  const current = currentExpiresAt ? new Date(currentExpiresAt) : null;
+  const base = current && current.getTime() > now.getTime() ? current : now;
+
+  return new Date(base.getTime() + SPELL_DURATION_MS).toISOString();
+}
+
+function pickFinalReward(bonusmapType: "green" | "red" | "blue") {
+  const rewards = BONUS_MAP_FINAL_REWARDS[bonusmapType];
+  const roll = Math.random() * 100;
+
+  let acc = 0;
+
+  for (const reward of rewards) {
+    acc += reward.chance;
+
+    if (roll <= acc) {
+      return reward.id;
+    }
+  }
+
+  return rewards[0].id;
+}
+
+async function addInventoryItem(profileId: string, itemId: string, amount: number) {
+  const { data: existing } = await supabase
+    .from("player_inventory")
+    .select("amount")
+    .eq("profile_id", profileId)
+    .eq("item_id", itemId)
+    .maybeSingle();
+
+  if (existing) {
+    return supabase
+      .from("player_inventory")
+      .update({
+        amount: Number(existing.amount || 0) + amount,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("profile_id", profileId)
+      .eq("item_id", itemId);
+  }
+
+  return supabase.from("player_inventory").insert({
+    profile_id: profileId,
+    item_id: itemId,
+    amount,
+  });
+}
+
 router.post("/wave-complete", requireAuth, async (req: AuthRequest, res) => {
   const profileId = req.user?.profile_id;
 
@@ -27,36 +93,30 @@ router.post("/wave-complete", requireAuth, async (req: AuthRequest, res) => {
   const { bonusmap_type, wave } = parsed.data;
 
   const { data: progress, error: progressError } = await supabase
-  .from("player_bonusmaps")
-  .select("current_wave")
-  .eq("profile_id", profileId)
-  .eq("bonusmap_type", bonusmap_type)
-  .maybeSingle();
+    .from("player_bonusmaps")
+    .select("current_wave")
+    .eq("profile_id", profileId)
+    .eq("bonusmap_type", bonusmap_type)
+    .maybeSingle();
 
-if (progressError) {
-  return res.status(400).json({
-    success: false,
-    message: progressError.message,
-  });
-}
+  if (progressError) {
+    return res.status(400).json({ success: false, message: progressError.message });
+  }
 
-const currentWave = Number(progress?.current_wave || 0);
-const expectedWave = currentWave + 1;
+  const currentWave = Number(progress?.current_wave || 0);
+  const expectedWave = currentWave + 1;
 
-if (wave !== expectedWave) {
-  return res.status(400).json({
-    success: false,
-    message: `Invalid wave progression. Expected wave ${expectedWave}`,
-  });
-}
+  if (wave !== expectedWave) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid wave progression. Expected wave ${expectedWave}`,
+    });
+  }
 
   const reward = BONUS_MAP_WAVE_REWARDS[bonusmap_type]?.[wave];
 
   if (!reward) {
-    return res.status(400).json({
-      success: false,
-      message: "Wave reward not found",
-    });
+    return res.status(400).json({ success: false, message: "Wave reward not found" });
   }
 
   const { data: state, error: stateError } = await supabase
@@ -93,29 +153,7 @@ if (wave !== expectedWave) {
   if (reward.mojos) inventoryRewards.push({ item_id: "mojo", amount: reward.mojos });
 
   for (const item of inventoryRewards) {
-    const { data: existing } = await supabase
-      .from("player_inventory")
-      .select("amount")
-      .eq("profile_id", profileId)
-      .eq("item_id", item.item_id)
-      .maybeSingle();
-
-    if (existing) {
-      await supabase
-        .from("player_inventory")
-        .update({
-          amount: Number(existing.amount || 0) + item.amount,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("profile_id", profileId)
-        .eq("item_id", item.item_id);
-    } else {
-      await supabase.from("player_inventory").insert({
-        profile_id: profileId,
-        item_id: item.item_id,
-        amount: item.amount,
-      });
-    }
+    await addInventoryItem(profileId, item.item_id, item.amount);
   }
 
   await supabase.from("player_bonusmaps").upsert(
@@ -167,28 +205,6 @@ router.get("/progress/:type", requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
-
-const completeBonusmapSchema = z.object({
-  bonusmap_type: z.enum(["green", "red", "blue"]),
-});
-
-function pickFinalReward(bonusmapType: "green" | "red" | "blue") {
-  const rewards = BONUS_MAP_FINAL_REWARDS[bonusmapType];
-  const roll = Math.random() * 100;
-
-  let acc = 0;
-
-  for (const reward of rewards) {
-    acc += reward.chance;
-
-    if (roll <= acc) {
-      return reward.id;
-    }
-  }
-
-  return rewards[0].id;
-}
-
 router.post("/complete", requireAuth, async (req: AuthRequest, res) => {
   const profileId = req.user?.profile_id;
 
@@ -204,59 +220,50 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res) => {
 
   const { bonusmap_type } = parsed.data;
   const finalReward = pickFinalReward(bonusmap_type);
+  const spellColumn = SPELL_REWARD_COLUMNS[finalReward];
 
   const requiredFinalWave: Record<"green" | "red" | "blue", number> = {
-  green: 30,
-  red: 48,
-  blue: 64,
-};
+    green: 30,
+    red: 30,
+    blue: 30,
+  };
 
-const { data: progressCheck, error: progressCheckError } = await supabase
-  .from("player_bonusmaps")
-  .select("current_wave, owned_count")
-  .eq("profile_id", profileId)
-  .eq("bonusmap_type", bonusmap_type)
-  .maybeSingle();
-
-if (progressCheckError) {
-  return res.status(400).json({
-    success: false,
-    message: progressCheckError.message,
-  });
-}
-
-const currentWave = Number(progressCheck?.current_wave || 0);
-const ownedCountCheck = Number(progressCheck?.owned_count || 0);
-const finalWave = requiredFinalWave[bonusmap_type];
-
-if (ownedCountCheck <= 0) {
-  return res.status(400).json({
-    success: false,
-    message: "No owned bonusmap available",
-  });
-}
-
-if (currentWave < finalWave) {
-  return res.status(400).json({
-    success: false,
-    message: `Bonusmap not completed. Required wave ${finalWave}`,
-  });
-}
-
-  const ownedCount = ownedCountCheck;
-
-  const { error: progressUpdateError } = await supabase
+  const { data: progressCheck, error: progressCheckError } = await supabase
     .from("player_bonusmaps")
-    .upsert(
-      {
-        profile_id: profileId,
-        bonusmap_type,
-        current_wave: 0,
-        owned_count: Math.max(0, ownedCount - 1),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "profile_id,bonusmap_type" }
-    );
+    .select("current_wave, owned_count")
+    .eq("profile_id", profileId)
+    .eq("bonusmap_type", bonusmap_type)
+    .maybeSingle();
+
+  if (progressCheckError) {
+    return res.status(400).json({ success: false, message: progressCheckError.message });
+  }
+
+  const currentWave = Number(progressCheck?.current_wave || 0);
+  const ownedCount = Number(progressCheck?.owned_count || 0);
+  const finalWave = requiredFinalWave[bonusmap_type];
+
+  if (ownedCount <= 0) {
+    return res.status(400).json({ success: false, message: "No owned bonusmap available" });
+  }
+
+  if (currentWave < finalWave) {
+    return res.status(400).json({
+      success: false,
+      message: `Bonusmap not completed. Required wave ${finalWave}`,
+    });
+  }
+
+  const { error: progressUpdateError } = await supabase.from("player_bonusmaps").upsert(
+    {
+      profile_id: profileId,
+      bonusmap_type,
+      current_wave: 0,
+      owned_count: Math.max(0, ownedCount - 1),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "profile_id,bonusmap_type" }
+  );
 
   if (progressUpdateError) {
     return res.status(400).json({ success: false, message: progressUpdateError.message });
@@ -269,60 +276,50 @@ if (currentWave < finalWave) {
     "skull_crossbones_2_design",
   ];
 
-  if (designRewards.includes(finalReward)) {
-    const { data: existing } = await supabase
-      .from("player_inventory")
-      .select("amount")
-      .eq("profile_id", profileId)
-      .eq("item_id", finalReward)
-      .maybeSingle();
+  let spell_expires_at: string | null = null;
 
-    if (existing) {
-      await supabase
-        .from("player_inventory")
-        .update({
-          amount: Math.max(1, Number(existing.amount || 0)),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("profile_id", profileId)
-        .eq("item_id", finalReward);
-    } else {
-      await supabase.from("player_inventory").insert({
-        profile_id: profileId,
-        item_id: finalReward,
-        amount: 1,
+  if (spellColumn) {
+    const { data: spellState, error: spellFetchError } = await supabase
+      .from("player_state")
+      .select(spellColumn)
+      .eq("profile_id", profileId)
+      .single();
+
+    if (spellFetchError || !spellState) {
+      return res.status(400).json({
+        success: false,
+        message: spellFetchError?.message || "Player state not found",
       });
     }
+
+    const spellStateRecord = spellState as unknown as Record<string, string | null>;
+    const currentExpiresAt = spellStateRecord[spellColumn] || null;
+    const newExpiresAt = addSevenDaysToSpell(currentExpiresAt);
+
+    const { error: spellUpdateError } = await supabase
+      .from("player_state")
+      .update({
+        [spellColumn]: newExpiresAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("profile_id", profileId);
+
+    if (spellUpdateError) {
+      return res.status(400).json({ success: false, message: spellUpdateError.message });
+    }
+
+    spell_expires_at = newExpiresAt;
+  } else if (designRewards.includes(finalReward)) {
+    await addInventoryItem(profileId, finalReward, 1);
   } else {
-    const { data: existing } = await supabase
-      .from("player_inventory")
-      .select("amount")
-      .eq("profile_id", profileId)
-      .eq("item_id", finalReward)
-      .maybeSingle();
-
-    if (existing) {
-      await supabase
-        .from("player_inventory")
-        .update({
-          amount: Number(existing.amount || 0) + 1,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("profile_id", profileId)
-        .eq("item_id", finalReward);
-    } else {
-      await supabase.from("player_inventory").insert({
-        profile_id: profileId,
-        item_id: finalReward,
-        amount: 1,
-      });
-    }
+    await addInventoryItem(profileId, finalReward, 1);
   }
 
   return res.json({
     success: true,
     bonusmap_type,
     final_reward: finalReward,
+    spell_expires_at,
     current_wave: 0,
     owned_count: Math.max(0, ownedCount - 1),
   });
