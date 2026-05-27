@@ -205,18 +205,45 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res) => {
   const { bonusmap_type } = parsed.data;
   const finalReward = pickFinalReward(bonusmap_type);
 
-  const { data: progress, error: progressError } = await supabase
-    .from("player_bonusmaps")
-    .select("owned_count")
-    .eq("profile_id", profileId)
-    .eq("bonusmap_type", bonusmap_type)
-    .maybeSingle();
+  const requiredFinalWave: Record<"green" | "red" | "blue", number> = {
+  green: 30,
+  red: 48,
+  blue: 64,
+};
 
-  if (progressError) {
-    return res.status(400).json({ success: false, message: progressError.message });
-  }
+const { data: progressCheck, error: progressCheckError } = await supabase
+  .from("player_bonusmaps")
+  .select("current_wave, owned_count")
+  .eq("profile_id", profileId)
+  .eq("bonusmap_type", bonusmap_type)
+  .maybeSingle();
 
-  const ownedCount = Number(progress?.owned_count || 0);
+if (progressCheckError) {
+  return res.status(400).json({
+    success: false,
+    message: progressCheckError.message,
+  });
+}
+
+const currentWave = Number(progressCheck?.current_wave || 0);
+const ownedCountCheck = Number(progressCheck?.owned_count || 0);
+const finalWave = requiredFinalWave[bonusmap_type];
+
+if (ownedCountCheck <= 0) {
+  return res.status(400).json({
+    success: false,
+    message: "No owned bonusmap available",
+  });
+}
+
+if (currentWave < finalWave) {
+  return res.status(400).json({
+    success: false,
+    message: `Bonusmap not completed. Required wave ${finalWave}`,
+  });
+}
+
+  const ownedCount = ownedCountCheck;
 
   const { error: progressUpdateError } = await supabase
     .from("player_bonusmaps")
