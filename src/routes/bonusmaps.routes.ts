@@ -34,13 +34,26 @@ function addSevenDaysToSpell(currentExpiresAt: string | null): string {
   return new Date(base.getTime() + SPELL_DURATION_MS).toISOString();
 }
 
-function pickFinalReward(bonusmapType: "green" | "red" | "blue") {
+function pickFinalReward(
+  bonusmapType: "green" | "red" | "blue",
+  ownedDesigns: Set<string>
+) {
   const rewards = BONUS_MAP_FINAL_REWARDS[bonusmapType];
+
+  const availableRewards = rewards.filter((reward) => {
+    if (reward.id.endsWith("_design") && ownedDesigns.has(reward.id)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const rewardPool = availableRewards.length > 0 ? availableRewards : rewards;
   const roll = Math.random() * 100;
 
   let acc = 0;
 
-  for (const reward of rewards) {
+  for (const reward of rewardPool) {
     acc += reward.chance;
 
     if (roll <= acc) {
@@ -48,7 +61,7 @@ function pickFinalReward(bonusmapType: "green" | "red" | "blue") {
     }
   }
 
-  return rewards[0].id;
+  return rewardPool[0].id;
 }
 
 async function addInventoryItem(profileId: string, itemId: string, amount: number) {
@@ -218,9 +231,30 @@ router.post("/complete", requireAuth, async (req: AuthRequest, res) => {
     return res.status(400).json({ success: false, message: "Invalid bonusmap complete data" });
   }
 
-  const { bonusmap_type } = parsed.data;
-  const finalReward = pickFinalReward(bonusmap_type);
-  const spellColumn = SPELL_REWARD_COLUMNS[finalReward];
+const { bonusmap_type } = parsed.data;
+
+const { data: ownedDesignRows, error: ownedDesignError } = await supabase
+  .from("player_inventory")
+  .select("item_id")
+  .eq("profile_id", profileId)
+  .in("item_id", [
+    "dark_mojo_design",
+    "venom_design",
+    "skull_crossbones_design",
+    "skull_crossbones_2_design",
+  ]);
+
+if (ownedDesignError) {
+  return res.status(400).json({
+    success: false,
+    message: ownedDesignError.message,
+  });
+}
+
+const ownedDesigns = new Set((ownedDesignRows || []).map((row) => String(row.item_id)));
+
+const finalReward = pickFinalReward(bonusmap_type, ownedDesigns);
+const spellColumn = SPELL_REWARD_COLUMNS[finalReward];
 
   const requiredFinalWave: Record<"green" | "red" | "blue", number> = {
     green: 30,
