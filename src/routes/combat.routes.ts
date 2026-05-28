@@ -421,7 +421,9 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
 
    let combatDamageBonusPercent = Number(stats.cannon_damage_bonus_percent || 0);
 
-if (gunpowderConsumed) {
+const statsAlreadyIncludesGunpowderBonus = Boolean(gunpowderEquipped);
+
+if (gunpowderConsumed && !statsAlreadyIncludesGunpowderBonus) {
   const { data: explosiveAlchemyTalent } = await supabase
     .from("player_talents")
     .select("level")
