@@ -25,6 +25,57 @@ const attackSchema = z.object({
   use_gunpowder: z.boolean().optional(),
 });
 
+function getAmmoDamage(ammoType: "hollow" | "explosive" | "luminous"): number {
+  const values: Record<string, number> = {
+    hollow: 20,
+    explosive: 75,
+    luminous: 75,
+  };
+
+  return values[ammoType] || 20;
+}
+
+function calculateCannonVolleyDamage(params: {
+  ammoType: "hollow" | "explosive" | "luminous";
+  cannonCount: number;
+  hitChance: number;
+  damageBonusPercent: number;
+  critChance: number;
+  critDamageMultiplier: number;
+}) {
+  const ammoDamage = getAmmoDamage(params.ammoType);
+  const cannonCount = Math.max(1, Math.floor(params.cannonCount));
+  const hitChance = Math.max(0, Math.min(100, Number(params.hitChance || 0)));
+
+  let hitCannons = 0;
+  let baseDamage = 0;
+
+  for (let i = 0; i < cannonCount; i++) {
+    const roll = Math.random() * 100;
+
+    if (roll <= hitChance) {
+      hitCannons += 1;
+      baseDamage += ammoDamage;
+    }
+  }
+
+  let damage = baseDamage * (1 + Number(params.damageBonusPercent || 0) / 100);
+
+  const criticalRoll = Math.random() * 100;
+  const critical = damage > 0 && criticalRoll <= Number(params.critChance || 0);
+
+  if (critical) {
+    damage *= Number(params.critDamageMultiplier || 1.2);
+  }
+
+  return {
+    damage: Math.round(damage),
+    hit_cannons: hitCannons,
+    total_cannons: cannonCount,
+    critical,
+  };
+}
+
 router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
   const profileId = req.user?.profile_id;
 
@@ -358,32 +409,34 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
       }
     }
 
-    const hitRoll = Math.random() * 100;
-    const hit = hitRoll <= Number(stats.hit_chance || 0);
+    const volley = calculateCannonVolleyDamage({
+      ammoType: ammo_type,
+      cannonCount: ammoCost,
+      hitChance: Number(stats.hit_chance || 0),
+      damageBonusPercent: Number(stats.cannon_damage_bonus_percent || 0),
+      critChance: Number(stats.crit_chance || 0),
+      critDamageMultiplier: Number(stats.crit_damage_multiplier || 1.2),
+    });
 
-    const critRoll = Math.random() * 100;
-    const critical = hit && critRoll <= Number(stats.crit_chance || 0);
-
-    let damage = 0;
-
-    if (hit) {
-      damage = Number(stats.cannon_damage_preview || 0);
-
-      if (critical) {
-        damage *= Number(stats.crit_damage_multiplier || 1.2);
-      }
-    }
-
-    damage = Math.round(damage);
+    const damage = volley.damage;
+    const critical = volley.critical;
 
     return res.json({
       success: true,
-      attack: {
+            attack: {
         ammo_type,
         ammo_cost: ammoCost,
-        hit,
+
+        // Ya no usamos miss global.
+        // hit=true significa que el disparo/volley existió.
+        hit: true,
+
         critical,
         damage,
+
+        hit_cannons: volley.hit_cannons,
+        total_cannons: volley.total_cannons,
+
         hit_chance: Number(stats.hit_chance || 0),
         crit_chance: Number(stats.crit_chance || 0),
         reload_time: Number(stats.reload_time || 0),
