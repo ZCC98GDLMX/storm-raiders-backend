@@ -9,10 +9,12 @@ const router = Router();
 
 const npcKillSchema = z.object({
   npc_type: z.string().min(1).max(80),
+  target_id: z.string().min(1).max(160),
 });
 
 const monsterKillSchema = z.object({
   monster_type: z.string().min(1).max(80),
+  target_id: z.string().min(1).max(160),
 });
 
 const cannonShotEliteSchema = z.object({
