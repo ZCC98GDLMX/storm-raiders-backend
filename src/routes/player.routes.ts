@@ -2,6 +2,7 @@ import { Router } from "express";
 import { supabase } from "../db/supabase";
 import { requireAuth, AuthRequest } from "../middleware/auth.middleware";
 import { z } from "zod";
+import { calculatePlayerStats } from "../game/playerStats";
 
 const router = Router();
 const updateStateSchema = z.object({
@@ -107,6 +108,31 @@ router.patch("/state", requireAuth, async (req: AuthRequest, res) => {
     success: true,
     state,
   });
+});
+
+router.get("/stats", requireAuth, async (req: AuthRequest, res) => {
+  const profileId = req.user?.profile_id;
+
+  if (!profileId) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+    });
+  }
+
+  try {
+    const stats = await calculatePlayerStats(profileId);
+
+    return res.json({
+      success: true,
+      stats,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error instanceof Error ? error.message : "Could not calculate player stats",
+    });
+  }
 });
 
 export default router;
