@@ -3,6 +3,7 @@ import { z } from "zod";
 import { supabase } from "../db/supabase";
 import { requireAuth, AuthRequest } from "../middleware/auth.middleware";
 import { NPC_REWARDS, MONSTER_REWARDS } from "../game/npcRewards";
+import { calculatePlayerStats } from "../game/playerStats";
 
 const router = Router();
 
@@ -17,6 +18,10 @@ const monsterKillSchema = z.object({
 const cannonShotEliteSchema = z.object({
   ammo_type: z.string().min(1).max(80),
   cannon_count: z.number().int().min(1).max(109),
+});
+
+const attackSchema = z.object({
+  ammo_type: z.enum(["hollow", "explosive", "luminous"]),
 });
 
 router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
@@ -229,6 +234,157 @@ router.post("/cannon-shot-elite", requireAuth, async (req: AuthRequest, res) => 
     elite_gain: eliteGain,
     state: updatedState,
   });
+});
+
+router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
+  const profileId = req.user?.profile_id;
+
+  if (!profileId) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  const parsed = attackSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid attack data",
+    });
+  }
+
+  const { ammo_type } = parsed.data;
+
+  try {
+    const stats = await calculatePlayerStats(profileId);
+    const ammoCost = Math.max(1, Number(stats.equipped_cannons || 1));
+
+    const { data: ammoItem, error: ammoError } = await supabase
+      .from("player_inventory")
+      .select("item_id, amount")
+      .eq("profile_id", profileId)
+      .eq("item_id", ammo_type)
+      .maybeSingle();
+
+    if (ammoError) {
+      return res.status(400).json({
+        success: false,
+        message: ammoError.message,
+      });
+    }
+
+    if (!ammoItem || Number(ammoItem.amount || 0) < ammoCost) {
+      return res.status(400).json({
+        success: false,
+        message: "Not enough ammo",
+        ammo_type,
+        ammo_cost: ammoCost,
+      });
+    }
+
+    const newAmmoAmount = Number(ammoItem.amount || 0) - ammoCost;
+
+    const { data: updatedAmmo, error: updateAmmoError } = await supabase
+      .from("player_inventory")
+      .update({
+        amount: newAmmoAmount,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("profile_id", profileId)
+      .eq("item_id", ammo_type)
+      .select("item_id, amount")
+      .single();
+
+    if (updateAmmoError || !updatedAmmo) {
+      return res.status(400).json({
+        success: false,
+        message: updateAmmoError?.message || "Could not consume ammo",
+      });
+    }
+
+    let gunpowderConsumed = false;
+    let updatedGunpowder: { item_id: string; amount: number } | null = null;
+
+    const { data: gunpowderEquipped } = await supabase
+      .from("player_equipment")
+      .select("slot, item_id")
+      .eq("profile_id", profileId)
+      .eq("slot", "gunpowder")
+      .eq("item_id", "gunpowder")
+      .maybeSingle();
+
+    if (gunpowderEquipped) {
+      const { data: gunpowderItem } = await supabase
+        .from("player_inventory")
+        .select("item_id, amount")
+        .eq("profile_id", profileId)
+        .eq("item_id", "gunpowder")
+        .maybeSingle();
+
+      if (gunpowderItem && Number(gunpowderItem.amount || 0) > 0) {
+        const newGunpowderAmount = Number(gunpowderItem.amount || 0) - 1;
+
+        const { data: updatedGp } = await supabase
+          .from("player_inventory")
+          .update({
+            amount: newGunpowderAmount,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("profile_id", profileId)
+          .eq("item_id", "gunpowder")
+          .select("item_id, amount")
+          .single();
+
+        if (updatedGp) {
+          gunpowderConsumed = true;
+          updatedGunpowder = updatedGp;
+        }
+      }
+    }
+
+    const hitRoll = Math.random() * 100;
+    const hit = hitRoll <= Number(stats.hit_chance || 0);
+
+    const critRoll = Math.random() * 100;
+    const critical = hit && critRoll <= Number(stats.crit_chance || 0);
+
+    let damage = 0;
+
+    if (hit) {
+      damage = Number(stats.cannon_damage_preview || 0);
+
+      if (critical) {
+        damage *= Number(stats.crit_damage_multiplier || 1.2);
+      }
+    }
+
+    damage = Math.round(damage);
+
+    return res.json({
+      success: true,
+      attack: {
+        ammo_type,
+        ammo_cost: ammoCost,
+        hit,
+        critical,
+        damage,
+        hit_chance: Number(stats.hit_chance || 0),
+        crit_chance: Number(stats.crit_chance || 0),
+        reload_time: Number(stats.reload_time || 0),
+        cannon_range: Number(stats.cannon_range || 0),
+        gunpowder_consumed: gunpowderConsumed,
+      },
+      inventory: {
+        ammo: updatedAmmo,
+        gunpowder: updatedGunpowder,
+      },
+      stats,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error instanceof Error ? error.message : "Could not process attack",
+    });
+  }
 });
 
 export default router;
