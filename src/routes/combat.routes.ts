@@ -101,7 +101,7 @@ router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
     return res.status(400).json({ success: false, message: "Invalid npc kill data" });
   }
 
-  const { npc_type } = parsed.data;
+  const { npc_type, target_id } = parsed.data;
   const reward = NPC_REWARDS[npc_type];
 
   if (!reward) {
@@ -110,6 +110,39 @@ router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
       message: "Unknown npc type",
     });
   }
+
+  const { error: claimError } = await supabase
+  .from("combat_kill_claims")
+  .insert({
+    profile_id: profileId,
+    target_id,
+    target_type: "npc",
+    reward_type: npc_type,
+  });
+
+  console.log("CLAIM ERROR:", claimError);
+
+if (claimError) {
+  if (claimError.code === "23505") {
+    return res.json({
+      success: true,
+      duplicate: true,
+      message: "Kill already claimed",
+      npc_type,
+      reward: {
+        xp: 0,
+        gold: 0,
+        pearls: 0,
+        crystals: 0,
+      },
+    });
+  }
+
+  return res.status(400).json({
+    success: false,
+    message: claimError.message,
+  });
+}
 
   const { data: state, error: stateError } = await supabase
     .from("player_state")
@@ -167,7 +200,7 @@ router.post("/monster-kill", requireAuth, async (req: AuthRequest, res) => {
     return res.status(400).json({ success: false, message: "Invalid monster kill data" });
   }
 
-  const { monster_type } = parsed.data;
+  const { monster_type, target_id } = parsed.data;
   const reward = MONSTER_REWARDS[monster_type];
 
   if (!reward) {
@@ -176,6 +209,39 @@ router.post("/monster-kill", requireAuth, async (req: AuthRequest, res) => {
       message: "Unknown monster type",
     });
   }
+
+  const { error: claimError } = await supabase
+  .from("combat_kill_claims")
+  .insert({
+    profile_id: profileId,
+    target_id,
+    target_type: "monster",
+    reward_type: monster_type,
+  });
+
+  console.log("CLAIM ERROR:", claimError);
+
+if (claimError) {
+  if (claimError.code === "23505") {
+    return res.json({
+      success: true,
+      duplicate: true,
+      message: "Kill already claimed",
+      monster_type,
+      reward: {
+        xp: 0,
+        gold: 0,
+        pearls: 0,
+        crystals: 0,
+      },
+    });
+  }
+
+  return res.status(400).json({
+    success: false,
+    message: claimError.message,
+  });
+}
 
   const { data: state, error: stateError } = await supabase
     .from("player_state")
