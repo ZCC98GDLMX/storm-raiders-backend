@@ -152,6 +152,40 @@ router.post("/buy", requireAuth, async (req: AuthRequest, res) => {
 
   const newCurrencyAmount = currentCurrency - item.price;
 
+  if (item.id === "crystals") {
+  const newCrystalsAmount = Number(state.crystals || 0) + item.amount;
+
+  const { data: updatedState, error: updateStateError } = await supabase
+    .from("player_state")
+    .update({
+      [item.currency]: newCurrencyAmount,
+      crystals: newCrystalsAmount,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("profile_id", profileId)
+    .select("*")
+    .single();
+
+  if (updateStateError || !updatedState) {
+    return res.status(400).json({
+      success: false,
+      message: updateStateError?.message || "Could not update crystals",
+    });
+  }
+
+  return res.json({
+    success: true,
+    purchased: {
+      item_id: item.id,
+      amount: item.amount,
+      currency: item.currency,
+      price: item.price,
+    },
+    state: updatedState,
+    inventory_item: {},
+  });
+}
+
   const { data: updatedState, error: updateStateError } = await supabase
     .from("player_state")
     .update({
