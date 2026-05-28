@@ -142,14 +142,14 @@ function getForemanRepair(itemId: string): number {
   return values[itemId] || 0;
 }
 
-function getSlaveReloadReduction(itemId: string): number {
+function getSlaveReloadMultiplier(itemId: string): number {
   const values: Record<string, number> = {
-    slave_1: 0.5,
-    slave_2: 1.0,
-    slave_3: 1.5,
+    slave_1: 1.5,
+    slave_2: 1.75,
+    slave_3: 2.0,
   };
 
-  return values[itemId] || 0;
+  return values[itemId] || 1.0;
 }
 
 function getEquipmentMap(equipment: EquipmentRow[]) {
@@ -268,8 +268,8 @@ export async function calculatePlayerStats(profileId: string) {
 
   cannonRange += getTalentValue(talents, "destructions_reach", [2, 3, 4, 5, 6]);
 
-  reloadTime -= getSlaveReloadReduction(equipmentMap.slave?.item_id || "");
-  reloadTime = Math.max(1, reloadTime);
+    reloadTime = reloadTime / getSlaveReloadMultiplier(equipmentMap.slave?.item_id || "");
+    reloadTime = Math.max(1, reloadTime);
 
   let cannonDamageBonusPercent = 0;
 
