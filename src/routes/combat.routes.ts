@@ -76,6 +76,16 @@ function calculateCannonVolleyDamage(params: {
   };
 }
 
+function getTalentValueFromLevel(level: number, values: number[]): number {
+  const safeLevel = Math.max(0, Math.min(5, Number(level || 0)));
+
+  if (safeLevel <= 0) {
+    return 0;
+  }
+
+  return values[safeLevel - 1] || 0;
+}
+
 router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
   const profileId = req.user?.profile_id;
 
@@ -409,11 +419,30 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
       }
     }
 
+   let combatDamageBonusPercent = Number(stats.cannon_damage_bonus_percent || 0);
+
+if (gunpowderConsumed) {
+  const { data: explosiveAlchemyTalent } = await supabase
+    .from("player_talents")
+    .select("level")
+    .eq("profile_id", profileId)
+    .eq("talent_id", "explosive_alchemy")
+    .maybeSingle();
+
+  combatDamageBonusPercent += 10;
+  combatDamageBonusPercent += getTalentValueFromLevel(
+    Number(explosiveAlchemyTalent?.level || 0),
+    [7, 9, 11, 13, 15]
+  );
+}
+
+
+
     const volley = calculateCannonVolleyDamage({
       ammoType: ammo_type,
       cannonCount: ammoCost,
       hitChance: Number(stats.hit_chance || 0),
-      damageBonusPercent: Number(stats.cannon_damage_bonus_percent || 0),
+      damageBonusPercent: combatDamageBonusPercent,
       critChance: Number(stats.crit_chance || 0),
       critDamageMultiplier: Number(stats.crit_damage_multiplier || 1.2),
     });
@@ -439,6 +468,7 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
 
         hit_chance: Number(stats.hit_chance || 0),
         crit_chance: Number(stats.crit_chance || 0),
+        damage_bonus_percent: combatDamageBonusPercent,
         reload_time: Number(stats.reload_time || 0),
         cannon_range: Number(stats.cannon_range || 0),
         gunpowder_consumed: gunpowderConsumed,
