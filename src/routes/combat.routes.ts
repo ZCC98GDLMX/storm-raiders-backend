@@ -22,6 +22,7 @@ const cannonShotEliteSchema = z.object({
 
 const attackSchema = z.object({
   ammo_type: z.enum(["hollow", "explosive", "luminous"]),
+  use_gunpowder: z.boolean().optional(),
 });
 
 router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
@@ -252,7 +253,7 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
     });
   }
 
-  const { ammo_type } = parsed.data;
+  const { ammo_type, use_gunpowder } = parsed.data;
 
   try {
     const stats = await calculatePlayerStats(profileId);
@@ -312,18 +313,27 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
       .eq("item_id", "gunpowder")
       .maybeSingle();
 
-    if (gunpowderEquipped) {
-      const { data: gunpowderItem } = await supabase
+    const shouldUseGunpowder = Boolean(gunpowderEquipped) || use_gunpowder === true;
+
+    if (shouldUseGunpowder) {
+      const { data: gunpowderItem, error: gunpowderFetchError } = await supabase
         .from("player_inventory")
         .select("item_id, amount")
         .eq("profile_id", profileId)
         .eq("item_id", "gunpowder")
         .maybeSingle();
 
+      if (gunpowderFetchError) {
+        return res.status(400).json({
+          success: false,
+          message: gunpowderFetchError.message,
+        });
+      }
+
       if (gunpowderItem && Number(gunpowderItem.amount || 0) > 0) {
         const newGunpowderAmount = Number(gunpowderItem.amount || 0) - 1;
 
-        const { data: updatedGp } = await supabase
+        const { data: updatedGp, error: updateGunpowderError } = await supabase
           .from("player_inventory")
           .update({
             amount: newGunpowderAmount,
@@ -333,6 +343,13 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
           .eq("item_id", "gunpowder")
           .select("item_id, amount")
           .single();
+
+        if (updateGunpowderError) {
+          return res.status(400).json({
+            success: false,
+            message: updateGunpowderError.message,
+          });
+        }
 
         if (updatedGp) {
           gunpowderConsumed = true;
