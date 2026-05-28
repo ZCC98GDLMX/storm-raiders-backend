@@ -120,7 +120,7 @@ router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
     reward_type: npc_type,
   });
 
-  console.log("CLAIM ERROR:", claimError);
+  
 
 if (claimError) {
   if (claimError.code === "23505") {
@@ -219,7 +219,7 @@ router.post("/monster-kill", requireAuth, async (req: AuthRequest, res) => {
     reward_type: monster_type,
   });
 
-  console.log("CLAIM ERROR:", claimError);
+  
 
 if (claimError) {
   if (claimError.code === "23505") {
