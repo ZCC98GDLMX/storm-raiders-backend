@@ -25,6 +25,8 @@ const cannonShotEliteSchema = z.object({
 const attackSchema = z.object({
   ammo_type: z.enum(["hollow", "explosive", "luminous"]),
   use_gunpowder: z.boolean().optional(),
+  target_id: z.string().min(1).max(160).optional(),
+  target_type: z.enum(["npc", "monster", "guild_tower"]).optional(),
 });
 
 function getAmmoDamage(ammoType: "hollow" | "explosive" | "luminous"): number {
@@ -382,7 +384,7 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
     });
   }
 
-  const { ammo_type, use_gunpowder } = parsed.data;
+  const { ammo_type, use_gunpowder, target_id, target_type } = parsed.data;
 
   try {
     const stats = await calculatePlayerStats(profileId);
@@ -519,6 +521,39 @@ if (gunpowderConsumed && !statsAlreadyIncludesGunpowderBonus) {
 
     const damage = volley.damage;
     const critical = volley.critical;
+
+    if (target_id && target_type && damage > 0) {
+  const { data: existingClaim } = await supabase
+    .from("combat_damage_claims")
+    .select("damage, hit_count")
+    .eq("profile_id", profileId)
+    .eq("target_id", target_id)
+    .maybeSingle();
+
+  if (existingClaim) {
+    await supabase
+      .from("combat_damage_claims")
+      .update({
+        damage: Number(existingClaim.damage || 0) + damage,
+        hit_count: Number(existingClaim.hit_count || 0) + 1,
+        target_type,
+        last_hit_at: new Date().toISOString(),
+      })
+      .eq("profile_id", profileId)
+      .eq("target_id", target_id);
+  } else {
+    await supabase
+      .from("combat_damage_claims")
+      .insert({
+        profile_id: profileId,
+        target_id,
+        target_type,
+        damage,
+        hit_count: 1,
+        last_hit_at: new Date().toISOString(),
+      });
+  }
+}
 
     return res.json({
       success: true,
