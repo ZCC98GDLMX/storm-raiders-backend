@@ -113,6 +113,28 @@ router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
     });
   }
 
+  const { data: damageClaim, error: damageClaimError } = await supabase
+  .from("combat_damage_claims")
+  .select("damage, hit_count")
+  .eq("profile_id", profileId)
+  .eq("target_id", target_id)
+  .eq("target_type", "npc")
+  .maybeSingle();
+
+if (damageClaimError) {
+  return res.status(400).json({
+    success: false,
+    message: damageClaimError.message,
+  });
+}
+
+if (!damageClaim || Number(damageClaim.damage || 0) <= 0 || Number(damageClaim.hit_count || 0) <= 0) {
+  return res.status(403).json({
+    success: false,
+    message: "No combat damage claim found for this npc kill",
+  });
+}
+
   const { error: claimError } = await supabase
   .from("combat_kill_claims")
   .insert({
@@ -211,6 +233,28 @@ router.post("/monster-kill", requireAuth, async (req: AuthRequest, res) => {
       message: "Unknown monster type",
     });
   }
+
+  const { data: damageClaim, error: damageClaimError } = await supabase
+  .from("combat_damage_claims")
+  .select("damage, hit_count")
+  .eq("profile_id", profileId)
+  .eq("target_id", target_id)
+  .eq("target_type", "monster")
+  .maybeSingle();
+
+if (damageClaimError) {
+  return res.status(400).json({
+    success: false,
+    message: damageClaimError.message,
+  });
+}
+
+if (!damageClaim || Number(damageClaim.damage || 0) <= 0 || Number(damageClaim.hit_count || 0) <= 0) {
+  return res.status(403).json({
+    success: false,
+    message: "No combat damage claim found for this monster kill",
+  });
+}
 
   const { error: claimError } = await supabase
   .from("combat_kill_claims")
