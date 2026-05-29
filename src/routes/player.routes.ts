@@ -72,10 +72,24 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
     });
   }
 
+  const premiumExpiresAt = state.premium_expires_at
+  ? new Date(state.premium_expires_at).getTime()
+  : 0;
+
+const premiumTimeLeft = premiumExpiresAt > 0
+  ? Math.max(0, Math.floor((premiumExpiresAt - Date.now()) / 1000))
+  : 0;
+
+const stateWithPremium = {
+  ...state,
+  premium_time_left: premiumTimeLeft,
+  is_premium: premiumTimeLeft > 0,
+};
+
   return res.json({
     success: true,
     profile,
-    state,
+    state: stateWithPremium,
   });
 });
 
@@ -117,9 +131,23 @@ router.patch("/state", requireAuth, async (req: AuthRequest, res) => {
     });
   }
 
+  const premiumExpiresAt = state.premium_expires_at
+  ? new Date(state.premium_expires_at).getTime()
+  : 0;
+
+const premiumTimeLeft = premiumExpiresAt > 0
+  ? Math.max(0, Math.floor((premiumExpiresAt - Date.now()) / 1000))
+  : 0;
+
+const stateWithPremium = {
+  ...state,
+  premium_time_left: premiumTimeLeft,
+  is_premium: premiumTimeLeft > 0,
+};
+
   return res.json({
     success: true,
-    state,
+    state: stateWithPremium,
   });
 });
 
