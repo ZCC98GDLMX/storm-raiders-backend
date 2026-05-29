@@ -31,6 +31,14 @@ const attackSchema = z.object({
   target_max_hp: z.number().int().positive().optional(),
 });
 
+const harpoonAttackSchema = z.object({
+  harpoon_type: z.string().min(1).max(80),
+  target_id: z.string().min(1).max(160),
+  target_type: z.literal("monster"),
+  reward_type: z.string().min(1).max(80),
+  target_max_hp: z.number().int().positive(),
+});
+
 function getAmmoDamage(ammoType: "hollow" | "explosive" | "luminous"): number {
   const values: Record<string, number> = {
     hollow: 20,
@@ -707,6 +715,190 @@ if (target_id && target_type && reward_type && target_max_hp && damage > 0) {
     return res.status(400).json({
       success: false,
       message: error instanceof Error ? error.message : "Could not process attack",
+    });
+  }
+});
+
+router.post("/harpoon-attack", requireAuth, async (req: AuthRequest, res) => {
+  const profileId = req.user?.profile_id;
+
+  if (!profileId) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  const parsed = harpoonAttackSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid harpoon attack data",
+    });
+  }
+
+  const { harpoon_type, target_id, target_type, reward_type, target_max_hp } = parsed.data;
+
+  try {
+    const { data: harpoonItem, error: harpoonError } = await supabase
+      .from("player_inventory")
+      .select("item_id, amount")
+      .eq("profile_id", profileId)
+      .eq("item_id", harpoon_type)
+      .maybeSingle();
+
+    if (harpoonError) {
+      return res.status(400).json({ success: false, message: harpoonError.message });
+    }
+
+    if (!harpoonItem || Number(harpoonItem.amount || 0) <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Not enough harpoons",
+        harpoon_type,
+      });
+    }
+
+    const harpoonDamageByType: Record<string, number> = {
+      harpoon_1: 50,
+      harpoon_2: 100,
+      harpoon_3: 250,
+    };
+
+    const damage = harpoonDamageByType[harpoon_type] || 50;
+    const now = new Date().toISOString();
+
+    const { data: updatedHarpoon, error: updateHarpoonError } = await supabase
+      .from("player_inventory")
+      .update({
+        amount: Number(harpoonItem.amount || 0) - 1,
+        updated_at: now,
+      })
+      .eq("profile_id", profileId)
+      .eq("item_id", harpoon_type)
+      .select("item_id, amount")
+      .single();
+
+    if (updateHarpoonError || !updatedHarpoon) {
+      return res.status(400).json({
+        success: false,
+        message: updateHarpoonError?.message || "Could not consume harpoon",
+      });
+    }
+
+    let targetResult: {
+      current_hp: number;
+      max_hp: number;
+      dead: boolean;
+    };
+
+    const { data: existingTarget } = await supabase
+      .from("combat_targets")
+      .select("current_hp, max_hp, is_dead")
+      .eq("profile_id", profileId)
+      .eq("target_id", target_id)
+      .eq("target_type", target_type)
+      .maybeSingle();
+
+    if (existingTarget) {
+      if (existingTarget.is_dead) {
+        targetResult = {
+          current_hp: 0,
+          max_hp: Number(existingTarget.max_hp || target_max_hp),
+          dead: true,
+        };
+      } else {
+        const oldHp = Number(existingTarget.current_hp || 0);
+        const newHp = Math.max(0, oldHp - damage);
+        const dead = newHp <= 0;
+
+        await supabase
+          .from("combat_targets")
+          .update({
+            current_hp: newHp,
+            is_dead: dead,
+            updated_at: now,
+          })
+          .eq("profile_id", profileId)
+          .eq("target_id", target_id)
+          .eq("target_type", target_type);
+
+        targetResult = {
+          current_hp: newHp,
+          max_hp: Number(existingTarget.max_hp || target_max_hp),
+          dead,
+        };
+      }
+    } else {
+      const newHp = Math.max(0, target_max_hp - damage);
+      const dead = newHp <= 0;
+
+      await supabase
+        .from("combat_targets")
+        .insert({
+          profile_id: profileId,
+          target_id,
+          target_type,
+          reward_type,
+          max_hp: target_max_hp,
+          current_hp: newHp,
+          is_dead: dead,
+          updated_at: now,
+        });
+
+      targetResult = {
+        current_hp: newHp,
+        max_hp: target_max_hp,
+        dead,
+      };
+    }
+
+    const { data: existingClaim } = await supabase
+      .from("combat_damage_claims")
+      .select("damage, hit_count")
+      .eq("profile_id", profileId)
+      .eq("target_id", target_id)
+      .eq("target_type", target_type)
+      .maybeSingle();
+
+    if (existingClaim) {
+      await supabase
+        .from("combat_damage_claims")
+        .update({
+          damage: Number(existingClaim.damage || 0) + damage,
+          hit_count: Number(existingClaim.hit_count || 0) + 1,
+          target_type,
+          last_hit_at: now,
+        })
+        .eq("profile_id", profileId)
+        .eq("target_id", target_id)
+        .eq("target_type", target_type);
+    } else {
+      await supabase
+        .from("combat_damage_claims")
+        .insert({
+          profile_id: profileId,
+          target_id,
+          target_type,
+          damage,
+          hit_count: 1,
+          last_hit_at: now,
+        });
+    }
+
+    return res.json({
+      success: true,
+      attack: {
+        harpoon_type,
+        damage,
+      },
+      inventory: {
+        harpoon: updatedHarpoon,
+      },
+      target: targetResult,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error instanceof Error ? error.message : "Could not process harpoon attack",
     });
   }
 });
