@@ -116,6 +116,8 @@ router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
   const { npc_type, target_id } = parsed.data;
   const reward = NPC_REWARDS[npc_type];
 
+  console.log("NPC KILL TARGET:", target_id);
+
   if (!reward) {
     return res.status(400).json({
       success: false,
@@ -675,6 +677,8 @@ if (target_id && target_type && reward_type && target_max_hp && damage > 0) {
     };
   }
 }
+
+    console.log("ATTACK TARGET:", target_id);
 
     if (target_id && target_type && damage > 0) {
   const { data: existingClaim } = await supabase
