@@ -253,6 +253,8 @@ router.post("/monster-kill", requireAuth, async (req: AuthRequest, res) => {
   const { monster_type, target_id } = parsed.data;
   const reward = MONSTER_REWARDS[monster_type];
 
+  console.log("MONSTER KILL TARGET:", target_id);
+
   if (!reward) {
     return res.status(400).json({
       success: false,
