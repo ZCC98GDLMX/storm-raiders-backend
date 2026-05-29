@@ -116,7 +116,7 @@ router.post("/npc-kill", requireAuth, async (req: AuthRequest, res) => {
   const { npc_type, target_id } = parsed.data;
   const reward = NPC_REWARDS[npc_type];
 
-  console.log("NPC KILL TARGET:", target_id);
+  
 
   if (!reward) {
     return res.status(400).json({
@@ -222,7 +222,7 @@ if (claimError) {
   .eq("target_id", target_id)
   .eq("target_type", "npc");
 
-console.log("DELETE NPC TARGET ERROR:", deleteNpcTargetError);
+
 
 const { error: deleteNpcDamageError } = await supabase
   .from("combat_damage_claims")
@@ -231,7 +231,7 @@ const { error: deleteNpcDamageError } = await supabase
   .eq("target_id", target_id)
   .eq("target_type", "npc");
 
-console.log("DELETE NPC DAMAGE ERROR:", deleteNpcDamageError);
+
 
   return res.json({
     success: true,
@@ -257,7 +257,7 @@ router.post("/monster-kill", requireAuth, async (req: AuthRequest, res) => {
   const { monster_type, target_id } = parsed.data;
   const reward = MONSTER_REWARDS[monster_type];
 
-  console.log("MONSTER KILL TARGET:", target_id);
+  
 
   if (!reward) {
     return res.status(400).json({
@@ -363,7 +363,7 @@ if (claimError) {
   .eq("target_id", target_id)
   .eq("target_type", "monster");
 
-console.log("DELETE MONSTER TARGET ERROR:", deleteMonsterTargetError);
+
 
 const { error: deleteMonsterDamageError } = await supabase
   .from("combat_damage_claims")
@@ -372,7 +372,7 @@ const { error: deleteMonsterDamageError } = await supabase
   .eq("target_id", target_id)
   .eq("target_type", "monster");
 
-console.log("DELETE MONSTER DAMAGE ERROR:", deleteMonsterDamageError);
+
 
   return res.json({
     success: true,
@@ -688,7 +688,7 @@ if (target_id && target_type && reward_type && target_max_hp && damage > 0) {
   }
 }
 
-    console.log("ATTACK TARGET:", target_id);
+    
 
     if (target_id && target_type && damage > 0) {
   const { data: existingClaim } = await supabase
