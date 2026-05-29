@@ -213,6 +213,20 @@ if (claimError) {
     });
   }
 
+  await supabase
+  .from("combat_targets")
+  .delete()
+  .eq("profile_id", profileId)
+  .eq("target_id", target_id)
+  .eq("target_type", "npc");
+
+await supabase
+  .from("combat_damage_claims")
+  .delete()
+  .eq("profile_id", profileId)
+  .eq("target_id", target_id)
+  .eq("target_type", "npc");
+
   return res.json({
     success: true,
     npc_type,
@@ -333,6 +347,20 @@ if (claimError) {
       message: updateError?.message || "Could not apply monster reward",
     });
   }
+
+  await supabase
+  .from("combat_targets")
+  .delete()
+  .eq("profile_id", profileId)
+  .eq("target_id", target_id)
+  .eq("target_type", "monster");
+
+await supabase
+  .from("combat_damage_claims")
+  .delete()
+  .eq("profile_id", profileId)
+  .eq("target_id", target_id)
+  .eq("target_type", "monster");
 
   return res.json({
     success: true,
