@@ -215,19 +215,23 @@ if (claimError) {
     });
   }
 
-  await supabase
+  const { error: deleteNpcTargetError } = await supabase
   .from("combat_targets")
   .delete()
   .eq("profile_id", profileId)
   .eq("target_id", target_id)
   .eq("target_type", "npc");
 
-await supabase
+console.log("DELETE NPC TARGET ERROR:", deleteNpcTargetError);
+
+const { error: deleteNpcDamageError } = await supabase
   .from("combat_damage_claims")
   .delete()
   .eq("profile_id", profileId)
   .eq("target_id", target_id)
   .eq("target_type", "npc");
+
+console.log("DELETE NPC DAMAGE ERROR:", deleteNpcDamageError);
 
   return res.json({
     success: true,
@@ -352,19 +356,23 @@ if (claimError) {
     });
   }
 
-  await supabase
+  const { error: deleteMonsterTargetError } = await supabase
   .from("combat_targets")
   .delete()
   .eq("profile_id", profileId)
   .eq("target_id", target_id)
   .eq("target_type", "monster");
 
-await supabase
+console.log("DELETE MONSTER TARGET ERROR:", deleteMonsterTargetError);
+
+const { error: deleteMonsterDamageError } = await supabase
   .from("combat_damage_claims")
   .delete()
   .eq("profile_id", profileId)
   .eq("target_id", target_id)
   .eq("target_type", "monster");
+
+console.log("DELETE MONSTER DAMAGE ERROR:", deleteMonsterDamageError);
 
   return res.json({
     success: true,
