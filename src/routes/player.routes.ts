@@ -21,6 +21,13 @@ const updateStateSchema = z.object({
 
   rocket_damage_cooldown_left: z.number().min(0).optional(),
   rocket_slow_cooldown_left: z.number().min(0).optional(),
+  mission_progress: z.record(z.string(), z.any()).optional(),
+  claimed_missions: z.record(z.string(), z.any()).optional(),
+  active_mission_id: z.string().optional(),
+
+  active_pirate_test_id: z.string().optional(),
+  pirate_test_progress: z.record(z.string(), z.any()).optional(),
+  pirate_test_time_left: z.number().min(0).optional(),
 });
 
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
