@@ -14,6 +14,7 @@ import bonusmapRoutes from "./routes/bonusmaps.routes";
 import arubaRoutes from "./routes/aruba.routes";
 import glitterRoutes from "./routes/glitter.routes";
 import raidRoutes from "./routes/raid.routes";
+import worldRoutes from "./routes/world.routes";
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use("/bonusmaps", bonusmapRoutes);
 app.use("/aruba", arubaRoutes);
 app.use("/glitter", glitterRoutes);
 app.use("/raid", raidRoutes);
+app.use("/world", worldRoutes);
 
 app.get("/health", (_req, res) => {
   return res.status(200).json({
