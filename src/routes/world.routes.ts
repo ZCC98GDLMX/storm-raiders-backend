@@ -14,6 +14,7 @@ const presenceSchema = z.object({
   max_hp: z.number().min(0),
   is_sunk: z.boolean().optional(),
   ship_id: z.string().optional(),
+  elite_level: z.number().min(1).max(10).optional(),
 });
 
 router.post("/presence", requireAuth, async (req: AuthRequest, res) => {
@@ -57,6 +58,7 @@ router.post("/presence", requireAuth, async (req: AuthRequest, res) => {
     max_hp: parsed.data.max_hp,
     is_sunk: parsed.data.is_sunk ?? false,
     ship_id: parsed.data.ship_id || "",
+    elite_level: parsed.data.elite_level ?? 1,
     updated_at: new Date().toISOString(),
   };
 
