@@ -12,6 +12,8 @@ const updateStateSchema = z.object({
   position_y: z.number().optional(),
   current_hp: z.number().min(0).optional(),
 
+  level: z.number().min(1).optional(),
+
   turtle_light_time_left: z.number().min(0).optional(),
 
   crystal_gift_time_left: z.number().min(0).optional(),
