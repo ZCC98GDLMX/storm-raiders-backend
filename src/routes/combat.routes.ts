@@ -27,6 +27,8 @@ const attackSchema = z.object({
   use_gunpowder: z.boolean().optional(),
   target_id: z.string().min(1).max(160).optional(),
   target_type: z.enum(["npc", "monster", "guild_tower"]).optional(),
+  reward_type: z.string().min(1).max(80).optional(),
+  target_max_hp: z.number().int().positive().optional(),
 });
 
 function getAmmoDamage(ammoType: "hollow" | "explosive" | "luminous"): number {
@@ -428,7 +430,7 @@ router.post("/attack", requireAuth, async (req: AuthRequest, res) => {
     });
   }
 
-  const { ammo_type, use_gunpowder, target_id, target_type } = parsed.data;
+  const { ammo_type, use_gunpowder, target_id, target_type, reward_type, target_max_hp } = parsed.data;
 
   try {
     const stats = await calculatePlayerStats(profileId);
@@ -566,6 +568,78 @@ if (gunpowderConsumed && !statsAlreadyIncludesGunpowderBonus) {
     const damage = volley.damage;
     const critical = volley.critical;
 
+    let targetResult: {
+  current_hp: number;
+  max_hp: number;
+  dead: boolean;
+} | null = null;
+
+if (target_id && target_type && reward_type && target_max_hp && damage > 0) {
+  const now = new Date().toISOString();
+
+  const { data: existingTarget } = await supabase
+  .from("combat_targets")
+  .select("current_hp, max_hp, is_dead")
+  .eq("profile_id", profileId)
+  .eq("target_id", target_id)
+  .eq("target_type", target_type)
+  .maybeSingle();
+
+  if (existingTarget) {
+
+  if (existingTarget.is_dead) {
+    targetResult = {
+      current_hp: 0,
+      max_hp: Number(existingTarget.max_hp || target_max_hp),
+      dead: true,
+    };
+  } else {
+
+    const oldHp = Number(existingTarget.current_hp || 0);
+    const newHp = Math.max(0, oldHp - damage);
+    const dead = newHp <= 0;
+
+    await supabase
+      .from("combat_targets")
+      .update({
+        current_hp: newHp,
+        is_dead: dead,
+        updated_at: now,
+      })
+      .eq("profile_id", profileId)
+      .eq("target_id", target_id);
+
+    targetResult = {
+      current_hp: newHp,
+      max_hp: Number(existingTarget.max_hp || target_max_hp),
+      dead,
+    };
+  }
+} else {
+    const newHp = Math.max(0, target_max_hp - damage);
+    const dead = newHp <= 0;
+
+    await supabase
+      .from("combat_targets")
+      .insert({
+        profile_id: profileId,
+        target_id,
+        target_type,
+        reward_type,
+        max_hp: target_max_hp,
+        current_hp: newHp,
+        is_dead: dead,
+        updated_at: now,
+      });
+
+    targetResult = {
+      current_hp: newHp,
+      max_hp: target_max_hp,
+      dead,
+    };
+  }
+}
+
     if (target_id && target_type && damage > 0) {
   const { data: existingClaim } = await supabase
     .from("combat_damage_claims")
@@ -627,6 +701,7 @@ if (gunpowderConsumed && !statsAlreadyIncludesGunpowderBonus) {
         gunpowder: updatedGunpowder,
       },
       stats,
+      target: targetResult,
     });
   } catch (error) {
     return res.status(400).json({
