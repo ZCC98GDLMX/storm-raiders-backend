@@ -39,6 +39,12 @@ const harpoonAttackSchema = z.object({
   target_max_hp: z.number().int().positive(),
 });
 
+const playerDamageSchema = z.object({
+  damage: z.number().positive(),
+  source_type: z.string().min(1).max(80).optional(),
+  source_id: z.string().min(1).max(160).optional(),
+});
+
 function getAmmoDamage(ammoType: "hollow" | "explosive" | "luminous"): number {
   const values: Record<string, number> = {
     hollow: 20,
@@ -941,6 +947,83 @@ router.post("/harpoon-attack", requireAuth, async (req: AuthRequest, res) => {
     return res.status(400).json({
       success: false,
       message: error instanceof Error ? error.message : "Could not process harpoon attack",
+    });
+  }
+});
+
+router.post("/player-damage", requireAuth, async (req: AuthRequest, res) => {
+  const profileId = req.user?.profile_id;
+
+  if (!profileId) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  const parsed = playerDamageSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid player damage data",
+    });
+  }
+
+  const { damage, source_type, source_id } = parsed.data;
+
+  try {
+    const stats = await calculatePlayerStats(profileId);
+
+    const { data: state, error: stateError } = await supabase
+      .from("player_state")
+      .select("current_hp")
+      .eq("profile_id", profileId)
+      .single();
+
+    if (stateError || !state) {
+      return res.status(400).json({
+        success: false,
+        message: "Player state not found",
+      });
+    }
+
+    const currentHp = Number(state.current_hp || stats.max_hp || 0);
+    const maxHp = Number(stats.max_hp || currentHp || 1);
+
+    const finalDamage = Math.max(0, Math.round(Number(damage || 0)));
+    const newHp = Math.max(0, currentHp - finalDamage);
+    const dead = newHp <= 0;
+
+    const { data: updatedState, error: updateError } = await supabase
+      .from("player_state")
+      .update({
+        current_hp: dead ? maxHp : newHp,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("profile_id", profileId)
+      .select("current_hp")
+      .single();
+
+    if (updateError || !updatedState) {
+      return res.status(400).json({
+        success: false,
+        message: updateError?.message || "Could not update player hp",
+      });
+    }
+
+    return res.json({
+      success: true,
+      source_type: source_type || "",
+      source_id: source_id || "",
+      damage: finalDamage,
+      hp: {
+        current_hp: Number(updatedState.current_hp || 0),
+        max_hp: maxHp,
+        dead,
+      },
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error instanceof Error ? error.message : "Could not process player damage",
     });
   }
 });
