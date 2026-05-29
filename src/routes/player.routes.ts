@@ -13,6 +13,10 @@ const updateStateSchema = z.object({
   current_hp: z.number().min(0).optional(),
 
   level: z.number().min(1).optional(),
+  current_xp: z.number().min(0).optional(),
+  gold: z.number().min(0).optional(),
+  pearls: z.number().min(0).optional(),
+  crystals: z.number().min(0).optional(),
 
   turtle_light_time_left: z.number().min(0).optional(),
 
