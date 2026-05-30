@@ -15,6 +15,9 @@ const presenceSchema = z.object({
   is_sunk: z.boolean().optional(),
   ship_id: z.string().optional(),
   elite_level: z.number().min(1).max(10).optional(),
+  direction_x: z.number().optional(),
+  direction_y: z.number().optional(),
+  is_moving: z.boolean().optional(),
 });
 
 router.post("/presence", requireAuth, async (req: AuthRequest, res) => {
@@ -60,6 +63,9 @@ router.post("/presence", requireAuth, async (req: AuthRequest, res) => {
     ship_id: parsed.data.ship_id || "",
     elite_level: parsed.data.elite_level ?? 1,
     updated_at: new Date().toISOString(),
+    direction_x: parsed.data.direction_x ?? 0,
+    direction_y: parsed.data.direction_y ?? 0,
+    is_moving: parsed.data.is_moving ?? false,
   };
 
   const { data, error } = await supabase
